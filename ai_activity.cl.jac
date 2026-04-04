@@ -1,8 +1,33 @@
 cl import from shared { empty_state, IncidentRecord, panel_classes, urgency_classes, workflow_node }
 
 def:pub ai_activity_view(incidents: list, selected: IncidentRecord, set_selected: any) -> JsxElement {
+    if len(incidents) == 0 {
+        return (
+            <div className="flex w-full flex-col p-8 bg-slate-50 min-h-full">
+                <div className="mb-6 flex justify-between items-end">
+                    <div>
+                        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-2">AI Execution Logs</h1>
+                        <p className="text-base text-slate-500 max-w-2xl">
+                            Monitor the agentic parsing and triage logic for live inbound SMS messages.
+                        </p>
+                    </div>
+                </div>
+                {empty_state("No AI processing logs", "Live Twilio webhooks will trigger AI triage steps here.", False)}
+            </div>
+        );
+    }
     return (
-        <div className="grid grid-cols-[380px_1fr] gap-6 max-h-[85vh]">
+        <div className="flex w-full flex-col p-8 bg-slate-50 min-h-full">
+            <div className="mb-6 flex justify-between items-end">
+                <div>
+                    <h1 className="text-2xl font-semibold tracking-tight text-slate-900 mb-2">AI Execution Logs</h1>
+                    <p className="text-base text-slate-500 max-w-2xl">
+                        Monitor the agentic parsing and triage logic for live inbound SMS messages.
+                    </p>
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-[380px_1fr] gap-6 max-h-[85vh] flex-1">
             <div className={"flex flex-col gap-4 overflow-y-auto " + panel_classes() + " p-6"}>
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight text-slate-900">{selected.id}</h2>
@@ -70,6 +95,7 @@ def:pub ai_activity_view(incidents: list, selected: IncidentRecord, set_selected
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     );
 }
