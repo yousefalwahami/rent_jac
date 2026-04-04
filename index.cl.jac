@@ -5,6 +5,7 @@ cl import from .incidents { incidents_view }
 cl import from .ai_activity { ai_activity_view }
 cl import from .demo_mode { demo_mode_view }
 cl import from .settings { settings_view }
+cl import from .sms_inbox { SmsInboxView }
 
 def:pub ClientApp() -> JsxElement {
     has current_view: str = "Dashboard";
@@ -26,6 +27,7 @@ def:pub ClientApp() -> JsxElement {
         if current_view == "Incidents" { return incidents_view(incidents, selected_incident, set_selected, search, lambda value: str -> None { search = value; }, urgency_filter, lambda value: str -> None { urgency_filter = value; }, category_filter, lambda value: str -> None { category_filter = value; }); }
         if current_view == "AI Activity" { return ai_activity_view(incidents, selected_incident, set_selected); }
         if current_view == "Demo Mode" { return demo_mode_view(incidents, selected_incident, set_selected, scenario, lambda value: str -> None { scenario = value; }, incoming_text, lambda value: str -> None { incoming_text = value; }, demo_stage, lambda value: int -> None { demo_stage = value; }); }
+        if current_view == "SMS Inbox" { return <SmsInboxView />; }
         return settings_view();
     }
 
@@ -48,6 +50,7 @@ def:pub ClientApp() -> JsxElement {
                         {sidebar_item("Incidents", current_view == "Incidents", lambda -> None { current_view = "Incidents"; }, str(len(incidents)))}
                         {sidebar_item("AI Activity", current_view == "AI Activity", lambda -> None { current_view = "AI Activity"; }, "94%")}
                         {sidebar_item("Demo Mode", current_view == "Demo Mode", lambda -> None { current_view = "Demo Mode"; }, "Ready")}
+                        {sidebar_item("SMS Inbox", current_view == "SMS Inbox", lambda -> None { current_view = "SMS Inbox"; }, "Live")}
                         {sidebar_item("Settings", current_view == "Settings", lambda -> None { current_view = "Settings"; }, "Ops")}
                     </div>
                     <div className="mt-8 rounded-[28px] border border-slate-200 bg-slate-50 p-5">

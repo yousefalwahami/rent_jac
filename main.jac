@@ -3,7 +3,7 @@ Rentora entry point.
 Imports server-side symbols and mounts the client app.
 """
 
-import from services.appService { greet, send_test_sms, twilio_webhook }
+import from services.appService { greet, send_test_sms, twilio_webhook, get_messages }
 cl import ".styles.global.css";
 cl import from .index { ClientApp }
 

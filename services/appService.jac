@@ -1,6 +1,13 @@
 import from os { getenv }
 import from fastapi { Request }
 
+glob messages: list = [];
+
+
+def:pub get_messages() -> dict {
+    return {"messages": messages};
+}
+
 
 def:pub greet(name: str = "World") -> dict {
     return {"message": "Hello, " + name + "! Your Jac backend is working."};
@@ -41,9 +48,17 @@ def:pub send_test_sms() -> dict {
 
 
 async def:pub twilio_webhook(request: Request) -> dict {
+    import from datetime { datetime }
     form = await request.form();
     from_number = str(form.get("From") or "unknown");
     body = str(form.get("Body") or "");
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S");
+
+    messages.insert(0, {
+        "from": from_number,
+        "body": body,
+        "time": timestamp,
+    });
 
     print("Incoming Twilio SMS from " + from_number + ": " + body);
 
