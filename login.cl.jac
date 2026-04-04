@@ -1,13 +1,14 @@
 import from "@jac/runtime" { jacLogin, jacSignup }
 cl import from shared { panel_classes }
 
-def:pub LoginView(on_auth_success: any) -> JsxElement {
+def:pub LoginView(props: dict) -> JsxElement {
     has mode: str = "login";
     has email: str = "";
     has password: str = "";
     has alert_number: str = "";
     has loading: bool = False;
     has error: str = "";
+    on_auth_success = props["on_auth_success"] if (props and "on_auth_success" in props) else None;
 
     async def handle_submit(e: any) -> None {
         e.preventDefault();
@@ -22,7 +23,9 @@ def:pub LoginView(on_auth_success: any) -> JsxElement {
                 success = await jacLogin(email, password);
                 loading = False;
                 if success {
-                    on_auth_success();
+                    if on_auth_success {
+                        on_auth_success();
+                    }
                 } else {
                     error = "Invalid email or password";
                 }
@@ -38,7 +41,9 @@ def:pub LoginView(on_auth_success: any) -> JsxElement {
                     if alert_number {
                         root spawn update_profile(phone_number=alert_number);
                     }
-                    on_auth_success();
+                    if on_auth_success {
+                        on_auth_success();
+                    }
                 } else {
                     err = result["error"];
                     error = str(err["message"]) if (err and err["message"]) else (str(err) if err else "Registration failed");

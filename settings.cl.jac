@@ -5,8 +5,9 @@ def:pub SettingsView() -> JsxElement {
     has twilio_number: str = "";
     has alert_number: str = "";
     has alert_input: str = "";
-    has loading: bool = False;
-    has initialized: bool = False;
+    #has loading: bool = False;
+    #has initialized: bool = False;
+    has loading: bool = True;
     has saving: bool = False;
     has save_success: bool = False;
 
@@ -25,11 +26,10 @@ def:pub SettingsView() -> JsxElement {
             alert_input = "";
         }
         loading = False;
-        initialized = True;
     }
 
-    if not initialized and not loading {
-        load_settings();
+    async can with entry {
+        await load_settings();
     }
 
     async def handle_save(e: any) -> None {

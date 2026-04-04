@@ -22,7 +22,7 @@ def:pub ClientApp() -> JsxElement {
     has demo_stage: int = 0;
 
     if not is_authenticated {
-        return LoginView(lambda -> None { is_authenticated = True; });
+        return <LoginView on_auth_success={lambda -> None { is_authenticated = True; }} />;
     }
 
     def handle_logout() -> None {
