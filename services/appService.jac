@@ -2,6 +2,7 @@ import from os { getenv }
 import from fastapi { Request }
 
 glob messages: list = [];
+glob _alert_number: str = getenv("TWILIO_TARGET_PHONE_NUMBER") or "";
 
 
 def:pub get_messages() -> dict {
@@ -12,6 +13,12 @@ def:pub get_messages() -> dict {
 def:pub get_twilio_number() -> dict {
     number = getenv("TWILIO_PHONE_NUMBER") or "";
     return {"number": number};
+}
+
+
+def:pub set_alert_number(phone_number: str) -> dict {
+    _alert_number = phone_number;
+    return {"success": True, "alert_number": phone_number};
 }
 
 
@@ -55,6 +62,8 @@ def:pub send_test_sms() -> dict {
 
 async def:pub twilio_webhook(request: Request) -> dict {
     import from datetime { datetime }
+    import from twilio.rest { Client }
+
     form = await request.form();
     from_number = str(form.get("From") or "unknown");
     body = str(form.get("Body") or "");
@@ -67,6 +76,25 @@ async def:pub twilio_webhook(request: Request) -> dict {
     });
 
     print("Incoming Twilio SMS from " + from_number + ": " + body);
+
+    if _alert_number {
+        try {
+            account_sid = getenv("TWILIO_ACCOUNT_SID");
+            auth_token = getenv("TWILIO_AUTH_TOKEN");
+            from_twilio = getenv("TWILIO_PHONE_NUMBER");
+            if account_sid and auth_token and from_twilio {
+                client = Client(account_sid, auth_token);
+                client.messages.create(
+                    body="New request from " + from_number + ": " + body,
+                    from_=from_twilio,
+                    to=_alert_number,
+                );
+                print("Alert forwarded to " + _alert_number);
+            }
+        } except Exception as e {
+            print("Failed to forward alert: " + str(e));
+        }
+    }
 
     return {
         "success": True,
