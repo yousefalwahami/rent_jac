@@ -32,6 +32,7 @@ def:pub settings_view() -> JsxElement {
         saving = True;
         save_success = False;
         root spawn update_profile(phone_number=alert_input);
+        await __doFuncFetch("set_alert_number", {"phone_number": alert_input});
         alert_number = alert_input;
         saving = False;
         save_success = True;
