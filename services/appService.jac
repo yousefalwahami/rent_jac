@@ -1,5 +1,8 @@
 import from os { getenv }
 import from fastapi { Request }
+import from dotenv { load_dotenv }
+
+glob _env: any = load_dotenv();
 
 glob messages: list = [];
 glob _alert_number: str = getenv("TWILIO_TARGET_PHONE_NUMBER") or "";
