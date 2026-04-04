@@ -17,6 +17,7 @@ tailwindcss = "^4.1.17"
 
 [dev-dependencies]
 watchdog = ">=3.0.0"
+twilio = ">=9.0.0"
 
 [serve]
 base_route_app = "app"
