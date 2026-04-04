@@ -14,9 +14,9 @@ def:pub dashboard_view(incidents: list, selected: IncidentRecord, set_selected: 
             
             <div className="grid grid-cols-4 gap-4 mb-8">
                 {metric_card("Live Incidents", str(len(incidents)), "-", "Active SMS threads")}
-                {metric_card("Pending AI", "0", "-", "Processing queue empty")}
-                {metric_card("Delivery Health", "100%", "OK", "Webhook latency < 50ms")}
-                {metric_card("System Status", "OK", "Online", "All systems operational")}
+                {metric_card("Pending AI", len(incidents) > 0 and "1" or "0", "-", len(incidents) > 0 and "Processing..." or "Processing queue empty")}
+                {metric_card("Delivery Health", len(incidents) > 0 and "100%" or "--", len(incidents) > 0 and "OK" or "Standby", len(incidents) > 0 and "Webhook latency < 50ms" or "Awaiting connection")}
+                {metric_card("System Status", len(incidents) > 0 and "OK" or "Ready", len(incidents) > 0 and "Online" or "Idle", len(incidents) > 0 and "All systems operational" or "Waiting for Twilio payload")}
             </div>
 
             
