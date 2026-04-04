@@ -1,4 +1,4 @@
-import from os { getcwd }
+import from os { getcwd, getenv }
 import from os.path { join }
 import from sqlite3 { connect }
 
@@ -27,12 +27,16 @@ walker get_profile {
         if profiles {
             report {
                 "email": email,
-                "phone_number": profiles[0].phone_number,
-                "name": profiles[0].name
+                "phone_number": profiles[0].phone_number if profiles[0].phone_number else (getenv("TWILIO_TARGET_PHONE_NUMBER") or ""),
+                "name": profiles[0].name if profiles[0].name else (getenv("OWNER_NAME") or "")
             };
         } else {
             here ++> UserProfile();
-            report {"email": email, "phone_number": "", "name": ""};
+            report {
+                "email": email,
+                "phone_number": getenv("TWILIO_TARGET_PHONE_NUMBER") or "",
+                "name": getenv("OWNER_NAME") or ""
+            };
         }
     }
 }
