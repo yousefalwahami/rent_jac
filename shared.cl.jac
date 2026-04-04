@@ -54,7 +54,7 @@ def:pub category_dot(value: str) -> str {
 
 def:pub empty_state(title: str, description: str, pulse: bool) -> JsxElement {
     return (
-        <div className="flex flex-col items-center justify-center py-16 px-4 text-center rounded-xl border border-slate-200 border-dashed bg-slate-50/50">
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center rounded-sm border border-slate-200 border-dashed bg-slate-50/50">
             <div className="relative mb-4">
                 <div className={"w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center " + (pulse and "animate-pulse" or "")}>
                    <div className={"w-3 h-3 rounded-full " + (pulse and "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" or "bg-slate-300")}></div>
@@ -71,7 +71,7 @@ def:pub nav_button_classes(active: bool) -> str {
 }
 
 def:pub panel_classes() -> str {
-    return "rounded-xl border border-slate-200 bg-white shadow-sm";
+    return "rounded-sm border border-slate-200 bg-white shadow-sm";
 }
 
 def:pub metric_card(title: str, value: str, delta: str, note: str) -> JsxElement {
@@ -91,7 +91,7 @@ def:pub metric_card(title: str, value: str, delta: str, note: str) -> JsxElement
 
 def:pub sidebar_item(label: str, active: bool, on_click: any, meta: str) -> JsxElement {
     return (
-        <button onClick={on_click} className={"w-full rounded-2xl px-4 py-3 text-left transition-all duration-200 " + nav_button_classes(active)}>
+        <button onClick={on_click} className={"w-full rounded-md px-4 py-3 text-left transition-all duration-200 " + nav_button_classes(active)}>
             <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-semibold tracking-[-0.01em]">{label}</span>
                 <span className={active and "text-white/70 text-xs" or "text-slate-400 text-xs"}>{meta}</span>
@@ -102,7 +102,7 @@ def:pub sidebar_item(label: str, active: bool, on_click: any, meta: str) -> JsxE
 
 def:pub incident_row(incident: IncidentRecord, active: bool, on_click: any) -> JsxElement {
     return (
-        <button onClick={on_click} className={"flex flex-col gap-2 w-full text-left p-3 rounded-lg border transition-all duration-150 " + (active and "bg-indigo-50/50 border-indigo-200 shadow-sm" or "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50")}>
+        <button onClick={on_click} className={"flex flex-col gap-2 w-full text-left p-3 rounded-sm border transition-all duration-150 " + (active and "bg-indigo-50/50 border-indigo-200 shadow-sm" or "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50")}>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <span className={"w-2 h-2 rounded-full " + category_dot(incident.category)}></span>
