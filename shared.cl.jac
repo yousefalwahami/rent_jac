@@ -51,6 +51,21 @@ def:pub category_dot(value: str) -> str {
     return "bg-slate-500";
 }
 
+
+def:pub empty_state(title: str, description: str, pulse: bool) -> JsxElement {
+    return (
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center rounded-xl border border-slate-200 border-dashed bg-slate-50/50">
+            <div className="relative mb-4">
+                <div className={"w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center " + (pulse and "animate-pulse" or "")}>
+                   <div className={"w-3 h-3 rounded-full " + (pulse and "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" or "bg-slate-300")}></div>
+                </div>
+            </div>
+            <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+            <p className="mt-1 text-sm text-slate-500 max-w-sm">{description}</p>
+        </div>
+    );
+}
+
 def:pub nav_button_classes(active: bool) -> str {
     return (active and "bg-slate-100/80 text-slate-900 font-medium" or "text-slate-500 hover:bg-slate-50 hover:text-slate-900");
 }

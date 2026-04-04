@@ -8,8 +8,9 @@ cl import from .shared { nav_button_classes, sample_incidents, IncidentRecord }
 
 def:pub ClientApp() -> JsxElement {
     has current_view: str = "Dashboard";
-    has incidents: list = sample_incidents();
-    has selected_incident: IncidentRecord = incidents[0];
+    has live_incidents: list = [];
+    has demo_incidents: list = sample_incidents();
+    has selected_incident: IncidentRecord = None;
     has search: str = "";
     has urgency_filter: str = "All";
     has category_filter: str = "All";
@@ -22,10 +23,10 @@ def:pub ClientApp() -> JsxElement {
     }
 
     def content() -> JsxElement {
-        if current_view == "Dashboard" { return dashboard_view(incidents, selected_incident, set_selected); }
-        if current_view == "Incidents" { return incidents_view(incidents, selected_incident, set_selected, search, lambda value: str -> None { search = value; }, urgency_filter, lambda value: str -> None { urgency_filter = value; }, category_filter, lambda value: str -> None { category_filter = value; }); }
-        if current_view == "AI Activity" { return ai_activity_view(incidents, selected_incident, set_selected); }
-        if current_view == "Demo Mode" { return demo_mode_view(incidents, selected_incident, set_selected, scenario, lambda value: str -> None { scenario = value; }, incoming_text, lambda value: str -> None { incoming_text = value; }, demo_stage, lambda value: int -> None { demo_stage = value; }); }
+        if current_view == "Dashboard" { return dashboard_view(live_incidents, selected_incident, set_selected); }
+        if current_view == "Incidents" { return incidents_view(live_incidents, selected_incident, set_selected, search, lambda value: str -> None { search = value; }, urgency_filter, lambda value: str -> None { urgency_filter = value; }, category_filter, lambda value: str -> None { category_filter = value; }); }
+        if current_view == "AI Activity" { return ai_activity_view(live_incidents, selected_incident, set_selected); }
+        if current_view == "Demo Mode" { return demo_mode_view(demo_incidents, demo_incidents[0] if len(demo_incidents) > 0 else None, set_selected, scenario, lambda value: str -> None { scenario = value; }, incoming_text, lambda value: str -> None { incoming_text = value; }, demo_stage, lambda value: int -> None { demo_stage = value; }); }
         if current_view == "SMS Inbox" { return <SmsInboxView />; }
         return settings_view();
     }
@@ -58,14 +59,14 @@ def:pub ClientApp() -> JsxElement {
                         </div>
                         <div>
                             <h1 className="text-[14px] font-semibold tracking-tight text-slate-900">Rentora</h1>
-                            <p className="text-[12px] text-slate-500 line-clamp-1">Profolio · 12 Props</p>
+                            <p className="text-[12px] text-slate-500 line-clamp-1">Production Environment</p>
                         </div>
                     </div>
 
                     
                     <div className="space-y-1">
                         {sidebar_item("Dashboard", current_view == "Dashboard", lambda -> None { current_view = "Dashboard"; }, "Live")}
-                        {sidebar_item("Incidents", current_view == "Incidents", lambda -> None { current_view = "Incidents"; }, str(len(incidents)))}
+                        {sidebar_item("Incidents", current_view == "Incidents", lambda -> None { current_view = "Incidents"; }, str(len(live_incidents)))}
                         {sidebar_item("AI Activity", current_view == "AI Activity", lambda -> None { current_view = "AI Activity"; }, "")}
                         {sidebar_item("Demo Mode", current_view == "Demo Mode", lambda -> None { current_view = "Demo Mode"; }, "")}
                         {sidebar_item("SMS Inbox", current_view == "SMS Inbox", lambda -> None { current_view = "SMS Inbox"; }, "Live")}
@@ -73,16 +74,22 @@ def:pub ClientApp() -> JsxElement {
                     </div>
 
                     <div className="mt-8 px-2">
-                        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">Workspaces</h3>
+                        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">System</h3>
                         <div className="space-y-1">
-                            <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                North Region
-                            </button>
-                            <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900">
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                East Region
-                            </button>
+                            <div className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-slate-600">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.8)] animate-pulse"></span>
+                                    Twilio Webhook
+                                </div>
+                                <span className="text-xs text-slate-400 font-mono">OK</span>
+                            </div>
+                            <div className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-slate-600">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    AI Parser
+                                </div>
+                                <span className="text-xs text-slate-400 font-mono">14ms</span>
+                            </div>
                         </div>
                     </div>
                 </div>
