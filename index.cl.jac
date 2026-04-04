@@ -3,7 +3,7 @@ cl import from .dashboard { dashboard_view }
 cl import from .incidents { incidents_view }
 cl import from .ai_activity { ai_activity_view }
 cl import from .demo_mode { demo_mode_view }
-cl import from .settings { settings_view }
+cl import from .settings { SettingsView }
 cl import from .sms_inbox { SmsInboxView }
 cl import from .login { LoginView }
 cl import from .shared { nav_button_classes, sample_incidents, IncidentRecord }
@@ -40,7 +40,7 @@ def:pub ClientApp() -> JsxElement {
         if current_view == "AI Activity" { return ai_activity_view(live_incidents, selected_incident, set_selected); }
         if current_view == "Demo Mode" { return demo_mode_view(demo_incidents, demo_incidents[0] if len(demo_incidents) > 0 else None, set_selected, scenario, lambda value: str -> None { scenario = value; }, incoming_text, lambda value: str -> None { incoming_text = value; }, demo_stage, lambda value: int -> None { demo_stage = value; }); }
         if current_view == "SMS Inbox" { return <SmsInboxView />; }
-        return settings_view();
+        return <SettingsView />;
     }
 
     def sidebar_item(label: str, active: bool, on_click: any, meta: str) -> JsxElement {

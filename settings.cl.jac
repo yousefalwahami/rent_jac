@@ -1,7 +1,7 @@
 import from "@jac/runtime" { __doFuncFetch }
 cl import from shared { panel_classes }
 
-def:pub settings_view() -> JsxElement {
+def:pub SettingsView() -> JsxElement {
     has twilio_number: str = "";
     has alert_number: str = "";
     has alert_input: str = "";
