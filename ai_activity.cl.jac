@@ -1,4 +1,4 @@
-cl import from shared { IncidentRecord, panel_classes, urgency_classes, workflow_node }
+cl import from shared { empty_state, IncidentRecord, panel_classes, urgency_classes, workflow_node }
 
 def:pub ai_activity_view(incidents: list, selected: IncidentRecord, set_selected: any) -> JsxElement {
     return (
