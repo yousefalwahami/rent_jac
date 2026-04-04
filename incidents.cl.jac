@@ -30,7 +30,7 @@ def:pub incidents_view(incidents: list, selected: any, set_selected: any, search
             </div>
 
             <div className="grid grid-cols-[1.5fr_1fr] gap-6 flex-1">
-                {/* Left Stream: Feed and Filters */}
+                
                 <div className={"flex flex-col bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm"}>
                     <div className="p-4 border-b border-slate-100 bg-slate-50/50 grid grid-cols-3 gap-3">
                         <input
@@ -65,7 +65,7 @@ def:pub incidents_view(incidents: list, selected: any, set_selected: any, search
                     </div>
                 </div>
 
-                {/* Right Panel: Incident Master Detail */}
+                
                 <div className={"flex flex-col bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm"}>
                     {selected == None and (
                         <div className="flex flex-col items-center justify-center h-full p-16 text-center bg-slate-50/50">
