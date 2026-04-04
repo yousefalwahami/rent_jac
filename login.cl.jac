@@ -1,7 +1,8 @@
 import from "@jac/runtime" { jacLogin, jacSignup }
 cl import from shared { panel_classes }
 
-def:pub LoginView(on_auth_success: any) -> JsxElement {
+def:pub LoginView(props: dict) -> JsxElement {
+    on_auth_success = props["on_auth_success"];
     has mode: str = "login";
     has email: str = "";
     has password: str = "";
