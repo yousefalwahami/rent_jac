@@ -52,11 +52,11 @@ def:pub category_dot(value: str) -> str {
 }
 
 def:pub nav_button_classes(active: bool) -> str {
-    return (active and "bg-slate-950 text-white shadow-[0_12px_30px_rgba(15,23,40,0.18)]" or "text-slate-600 hover:bg-white hover:text-slate-950");
+    return (active and "bg-slate-100/80 text-slate-900 font-medium" or "text-slate-500 hover:bg-slate-50 hover:text-slate-900");
 }
 
 def:pub panel_classes() -> str {
-    return "rounded-[28px] border border-white/70 bg-white/88 shadow-[0_18px_50px_rgba(15,23,40,0.08)] backdrop-blur";
+    return "rounded-xl border border-slate-200 bg-white shadow-sm";
 }
 
 def:pub metric_card(title: str, value: str, delta: str, note: str) -> JsxElement {
@@ -87,28 +87,24 @@ def:pub sidebar_item(label: str, active: bool, on_click: any, meta: str) -> JsxE
 
 def:pub incident_row(incident: IncidentRecord, active: bool, on_click: any) -> JsxElement {
     return (
-        <button onClick={on_click} className={"grid w-full grid-cols-[0.9fr_1.1fr_1.2fr_1fr_0.9fr_1fr_0.8fr] items-center gap-3 rounded-2xl border px-4 py-4 text-left transition-all duration-200 " + (active and "border-slate-900 bg-slate-950 text-white shadow-[0_18px_40px_rgba(15,23,40,0.18)]" or "border-transparent bg-white hover:border-slate-200 hover:bg-slate-50")}>
-            <div>
-                <p className={active and "text-sm font-semibold text-white" or "text-sm font-semibold text-slate-900"}>{incident.time}</p>
-                <p className={active and "mt-1 text-xs text-white/65" or "mt-1 text-xs text-slate-500"}>{incident.id}</p>
+        <button onClick={on_click} className={"flex flex-col gap-2 w-full text-left p-3 rounded-lg border transition-all duration-150 " + (active and "bg-indigo-50/50 border-indigo-200 shadow-sm" or "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50")}>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className={"w-2 h-2 rounded-full " + category_dot(incident.category)}></span>
+                    <span className="text-sm font-semibold text-slate-900">{incident.tenant}</span>
+                    <span className="text-xs text-slate-500 font-mono">{incident.id}</span>
+                </div>
+                <span className="text-xs text-slate-400">{incident.time}</span>
             </div>
-            <div>
-                <p className={active and "text-sm font-semibold text-white" or "text-sm font-semibold text-slate-900"}>{incident.tenant}</p>
-                <p className={active and "mt-1 text-xs text-white/65" or "mt-1 text-xs text-slate-500"}>{incident.phone}</p>
-            </div>
-            <div>
-                <p className={active and "text-sm font-semibold text-white" or "text-sm font-semibold text-slate-900"}>{incident.property}</p>
-                <p className={active and "mt-1 text-xs text-white/65" or "mt-1 text-xs text-slate-500"}>Unit {incident.unit}</p>
-            </div>
-            <div className="flex items-center gap-2">
-                <span className={"h-2.5 w-2.5 rounded-full " + category_dot(incident.category)}></span>
-                <span className={active and "text-sm text-white" or "text-sm text-slate-700"}>{incident.category}</span>
-            </div>
-            <div><span className={"inline-flex rounded-full px-2.5 py-1 text-xs font-semibold " + urgency_classes(incident.urgency)}>{incident.urgency}</span></div>
-            <div><span className={"inline-flex rounded-full px-2.5 py-1 text-xs font-semibold " + status_classes(incident.status)}>{incident.status}</span></div>
-            <div>
-                <p className={active and "text-sm font-semibold text-white" or "text-sm font-semibold text-slate-900"}>{incident.confidence}</p>
-                <p className={active and "mt-1 text-xs text-white/65" or "mt-1 text-xs text-slate-500"}>AI confidence</p>
+            
+            <div className="flex items-center justify-between text-xs">
+                <div className="text-slate-600">
+                    <span className="font-medium text-slate-700">{incident.property}</span>, Unit {incident.unit}
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className={"inline-flex justify-center uppercase tracking-wide border px-1.5 py-0.5 rounded text-[10px] font-bold " + urgency_classes(incident.urgency)}>{incident.urgency}</span>
+                    <span className={"inline-flex justify-center border px-1.5 py-0.5 rounded text-[10px] font-semibold " + status_classes(incident.status)}>{incident.status}</span>
+                </div>
             </div>
         </button>
     );
