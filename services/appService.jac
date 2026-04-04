@@ -9,6 +9,12 @@ def:pub get_messages() -> dict {
 }
 
 
+def:pub get_twilio_number() -> dict {
+    number = getenv("TWILIO_PHONE_NUMBER") or "";
+    return {"number": number};
+}
+
+
 def:pub greet(name: str = "World") -> dict {
     return {"message": "Hello, " + name + "! Your Jac backend is working."};
 }
