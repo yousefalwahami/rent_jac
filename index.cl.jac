@@ -1,12 +1,15 @@
+import from "@jac/runtime" { jacIsLoggedIn, jacLogout }
 cl import from .dashboard { dashboard_view }
 cl import from .incidents { incidents_view }
 cl import from .ai_activity { ai_activity_view }
 cl import from .demo_mode { demo_mode_view }
 cl import from .settings { settings_view }
 cl import from .sms_inbox { SmsInboxView }
+cl import from .login { LoginView }
 cl import from .shared { nav_button_classes, sample_incidents, IncidentRecord }
 
 def:pub ClientApp() -> JsxElement {
+    has is_authenticated: bool = jacIsLoggedIn();
     has current_view: str = "Dashboard";
     has live_incidents: list = [];
     has demo_incidents: list = sample_incidents();
@@ -17,6 +20,15 @@ def:pub ClientApp() -> JsxElement {
     has scenario: str = "Plumbing";
     has incoming_text: str = "The sink in Unit 4B is leaking and water is getting on the floor.";
     has demo_stage: int = 0;
+
+    if not is_authenticated {
+        return <LoginView on_auth_success={lambda -> None { is_authenticated = True; }} />;
+    }
+
+    def handle_logout() -> None {
+        jacLogout();
+        is_authenticated = False;
+    }
 
     def set_selected(item: IncidentRecord) -> None {
         selected_incident = item;
@@ -95,12 +107,17 @@ def:pub ClientApp() -> JsxElement {
                 </div>
 
                 <div className="p-4 border-t border-slate-200/60">
-                    <div className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-slate-100 cursor-pointer transition-colors">
-                        <div className="w-8 h-8 rounded-full bg-slate-200 shrink-0 border border-slate-300"></div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-medium text-slate-900 truncate">Jad Nizam</p>
-                            <p className="text-xs text-slate-500 truncate">jad@rentora.com</p>
+                    <div className="flex items-center justify-between gap-2 px-2 py-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0 border border-slate-300"></div>
+                            <p className="text-sm font-medium text-slate-900 truncate">Account</p>
                         </div>
+                        <button
+                            onClick={handle_logout}
+                            className="text-xs font-medium text-slate-500 hover:text-slate-900 px-2 py-1 rounded-md hover:bg-slate-100 transition shrink-0"
+                        >
+                            Sign out
+                        </button>
                     </div>
                 </div>
             </aside>
