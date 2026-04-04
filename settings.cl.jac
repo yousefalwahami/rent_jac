@@ -14,11 +14,16 @@ def:pub SettingsView() -> JsxElement {
         loading = True;
         t = await __doFuncFetch("get_twilio_number", {});
         twilio_number = t["number"] if (t and t["number"]) else "Not configured";
-        p = root spawn get_profile();
-        reports = p.reports if p else [];
-        data = reports[0] if reports else {};
-        alert_number = data["phone_number"] if (data and data["phone_number"]) else "";
-        alert_input = alert_number;
+        try {
+            p = root spawn get_profile();
+            reports = p.reports if p else [];
+            data = reports[0] if reports else {};
+            alert_number = data["phone_number"] if (data and data["phone_number"]) else "";
+            alert_input = alert_number;
+        } except Exception {
+            alert_number = "";
+            alert_input = "";
+        }
         loading = False;
         initialized = True;
     }

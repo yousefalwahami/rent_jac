@@ -18,24 +18,34 @@ def:pub LoginView(on_auth_success: any) -> JsxElement {
         loading = True;
         error = "";
         if mode == "login" {
-            success = await jacLogin(email, password);
-            loading = False;
-            if success {
-                on_auth_success();
-            } else {
+            try {
+                success = await jacLogin(email, password);
+                loading = False;
+                if success {
+                    on_auth_success();
+                } else {
+                    error = "Invalid email or password";
+                }
+            } except Exception as ex {
+                loading = False;
                 error = "Invalid email or password";
             }
         } else {
-            result = await jacSignup(email, password);
-            if result["success"] {
-                if alert_number {
-                    root spawn update_profile(phone_number=alert_number);
+            try {
+                result = await jacSignup(email, password);
+                loading = False;
+                if result["success"] {
+                    if alert_number {
+                        root spawn update_profile(phone_number=alert_number);
+                    }
+                    on_auth_success();
+                } else {
+                    err = result["error"];
+                    error = str(err["message"]) if (err and err["message"]) else (str(err) if err else "Registration failed");
                 }
+            } except Exception as ex {
                 loading = False;
-                on_auth_success();
-            } else {
-                loading = False;
-                error = result["error"] if result["error"] else "Registration failed";
+                error = "Registration failed";
             }
         }
     }
