@@ -7,6 +7,7 @@ import from datetime { datetime }
 import from services.graphService { triage }
 import from logging { getLogger }
 import from services.dataService { match_phone }
+import from services.graph.mongodb { log_sms, log_walker_run, create_notification }
 
 glob _env: any = load_dotenv();
 glob _twilio_log: any = getLogger("twilio.http_client").setLevel(40);
@@ -169,6 +170,10 @@ async def:pub twilio_webhook(request: Request) -> dict {
 
     print("Incoming Twilio SMS from " + from_number + ": " + body);
 
+    # Log inbound SMS to MongoDB
+    twilio_num = getenv("TWILIO_PHONE_NUMBER") or "";
+    log_sms(from_number, twilio_num, body, "inbound", msg_sid);
+
     # ── Run the AI triage pipeline ───────────────────────────
     triage_result: any = None;
     try {
@@ -181,9 +186,18 @@ async def:pub twilio_webhook(request: Request) -> dict {
             }
             print("Triage result: " + str(triage_result));
 
+            # Log walker run to MongoDB
+            log_walker_run("triage", triage_result.get("unit", ""), {"message": body, "phone": from_number}, triage_result);
+
             # If maintenance was processed, send SMS notifications
             if triage_result.get("event_type") == "maintenance" and triage_result.get("result") {
                 maint = triage_result["result"];
+
+                # Log maintenance walker run
+                log_walker_run("handle_maintenance", triage_result.get("unit", ""), {"message": body}, maint);
+
+                # Create approval notification
+                create_notification("approval_required", maint, maint.get("ticket_id", ""));
 
                 # Send tenant acknowledgment
                 if maint.get("tenant_reply") and maint.get("tenant_phone") {
