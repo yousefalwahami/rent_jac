@@ -6,7 +6,6 @@ import from twilio.rest { Client }
 import from datetime { datetime }
 import from services.graphService { triage }
 import from logging { getLogger }
-import from services.graph.crud { match_tenant }
 import from services.graph.localdb { log_sms, log_walker_run, create_notification }
 
 glob _env: any = load_dotenv();
@@ -33,24 +32,13 @@ def:pub get_messages() -> dict {
                 if "Sent from your Twilio trial account" in str(m.body) {
                     continue;
                 }
-                match_result = {"matched": False};
-                try {
-                    mt = root spawn match_tenant(phone=str(m.from_));
-                    match_result = mt.reports[0] if (mt and mt.reports) else {"matched": False};
-                } except Exception {
-                    match_result = {"matched": False};
-                }
                 fmt_msgs.append({
                     "from": m.from_,
                     "to": m.to,
                     "body": m.body,
                     "time": str(m.date_created) if m.date_created else "",
                     "sid": str(m.sid),
-                    "triage": _triage_by_sid.get(str(m.sid), None),
-                    "matched": match_result.get("matched", False),
-                    "tenant_name": match_result.get("tenant_name", ""),
-                    "property_name": match_result.get("property_name", ""),
-                    "unit": match_result.get("unit", "")
+                    "triage": _triage_by_sid.get(str(m.sid), None)
                 });
             }
             return {"messages": fmt_msgs, "source": "twilio_api"};

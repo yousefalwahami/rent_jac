@@ -50,6 +50,32 @@ def:pub ClientApp() -> JsxElement {
                 messages = [];
             }
 
+            # Client-side phone matching from localStorage tenants
+            ls_tenants = [];
+            try {
+                raw_t = localStorage.getItem("rentora_tenants");
+                if raw_t { ls_tenants = JSON.parse(raw_t); }
+            } except Exception {}
+            for msg in messages {
+                matched = False;
+                for t in ls_tenants {
+                    if str(t["phone_number"]) == str(msg["from"]) {
+                        msg["matched"] = True;
+                        msg["tenant_name"] = t["full_name"];
+                        msg["property_name"] = t["property_name"] if t["property_name"] else "Unknown Property";
+                        msg["unit"] = t["unit_number"];
+                        matched = True;
+                        break;
+                    }
+                }
+                if not matched {
+                    msg["matched"] = False;
+                    msg["tenant_name"] = "";
+                    msg["property_name"] = "";
+                    msg["unit"] = "";
+                }
+            }
+
             if True {
                 new_incidents = [];
                 id_counter = 1000;
