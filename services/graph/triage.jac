@@ -51,13 +51,16 @@ walker triage {
             classify_ms = int((datetime.now() - t_classify).total_seconds() * 1000);
 
             if classification == EventType.MAINTENANCE {
+                print("[triage] MAINTENANCE matched tenant=" + here.name + " unit=" + self.ctx_unit_number);
                 result = self.ctx_unit_ref spawn handle_maintenance(
                     message=self.message,
                     tenant_name=here.name,
                     tenant_phone=here.phone,
                     property_name=self.ctx_property_name
                 );
+                print("[triage] handle_maintenance result.reports count=" + str(len(result.reports)));
                 maint = result.reports[0] if result.reports else None;
+                print("[triage] maint=" + str(maint)[:120]);
                 if maint and "timings" in maint {
                     maint["timings"]["entity_ms"] = 1;
                     maint["timings"]["classify_ms"] = classify_ms;

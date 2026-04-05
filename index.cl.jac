@@ -89,6 +89,7 @@ def:pub ClientApp() -> JsxElement {
                 for msg in needs_triage {
                     try {
                         tr = await __doWalkerFetch("run_triage_for_message", "", {"body": str(msg["body"]), "from_number": str(msg["from"]), "msg_sid": str(msg["sid"]) if msg["sid"] else ""});
+                        console.log("[run_triage] reports=", tr["reports"]);
                         triage_val = None;
                         if tr and tr["reports"] and tr["reports"][0] { triage_val = tr["reports"][0]; }
                         if triage_val { msg["triage"] = triage_val; }
