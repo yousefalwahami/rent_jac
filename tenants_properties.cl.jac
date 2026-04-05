@@ -50,9 +50,9 @@ def:pub TenantsPropertiesView() -> JsxElement {
         loading = True;
         try {
             props_res = await __doWalkerFetch("fetch_properties", "", {});
-            properties = props_res["reports"][0] if (props_res and props_res["reports"] and props_res["reports"][0]) else [];
+            properties = props_res["reports"][0]["properties"] if (props_res and props_res["reports"] and props_res["reports"][0]) else [];
             tenants_res = await __doWalkerFetch("fetch_tenants", "", {});
-            tenants = tenants_res["reports"][0] if (tenants_res and tenants_res["reports"] and tenants_res["reports"][0]) else [];
+            tenants = tenants_res["reports"][0]["tenants"] if (tenants_res and tenants_res["reports"] and tenants_res["reports"][0]) else [];
         } except Exception as e {
             error_msg = "Failed to load: " + str(e);
         }
@@ -60,7 +60,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
     }
 
     async def init() -> None {
-        #try { await __doWalkerFetch("seed_if_empty", "", {}); } except Exception {}
+        try { await __doWalkerFetch("seed_if_empty", "", {}); } except Exception {}
         await reload();
     }
 
@@ -134,11 +134,9 @@ def:pub TenantsPropertiesView() -> JsxElement {
 
     async def delete_tenant(t_id: str) -> None {
         if window.confirm("Remove this tenant?") {
-            all_t = ls_load("rentora_tenants");
-            tenants = [t for t in all_t if t["id"] != t_id];
-            ls_save("rentora_tenants", tenants);
-            show_toast("Tenant removed");
             try { await __doFuncFetch("delete_tenant_data", {"tenant_id": t_id}); } except Exception {}
+            show_toast("Tenant removed");
+            await reload();
         }
     }
 
