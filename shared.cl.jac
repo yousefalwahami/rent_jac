@@ -111,7 +111,9 @@ def:pub incident_row(incident: IncidentRecord, active: bool, on_click: any) -> J
                 </div>
                 <span className="text-xs text-slate-400">{incident.time}</span>
             </div>
-            
+            <div className="text-xs text-slate-600 mt-1 mb-2 truncate">
+                {incident.message}
+            </div>
             <div className="flex items-center justify-between text-xs">
                 <div className="text-slate-600">
                     <span className="font-medium text-slate-700">{incident.property}</span>, Unit {incident.unit}
@@ -298,4 +300,23 @@ def:pub sample_incidents() -> list {
             ]
         )
     ];
+}
+
+def:pub create_incident_record(id: str, time: str, message: str, phone: str, tenant: str, prop: str, unit: str, category: str, urgency: str, status: str, confidence: str, summary: str, owner_notification: str, property_code: str) -> IncidentRecord {
+    return IncidentRecord(
+        id=id,
+        time=time,
+        message=message,
+        phone=phone,
+        tenant=tenant,
+        property=prop,
+        unit=unit,
+        category=category,
+        urgency=urgency,
+        status=status,
+        confidence=confidence,
+        summary=summary,
+        owner_notification=owner_notification,
+        property_code=property_code
+    );
 }

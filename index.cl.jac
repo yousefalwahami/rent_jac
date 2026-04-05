@@ -1,4 +1,4 @@
-import from "@jac/runtime" { jacIsLoggedIn, jacLogout }
+import from "@jac/runtime" { __doFuncFetch, jacIsLoggedIn, jacLogout }
 cl import from .dashboard { dashboard_view }
 cl import from .incidents { IncidentsView }
 cl import from .ai_activity { ai_activity_view }
@@ -6,12 +6,12 @@ cl import from .demo_mode { demo_mode_view }
 cl import from .settings { SettingsView }
 cl import from .sms_inbox { SmsInboxView }
 cl import from .login { LoginView }
-cl import from .shared { nav_button_classes, sample_incidents, IncidentRecord }
+cl import from .shared { nav_button_classes, sample_incidents, IncidentRecord, create_incident_record }
 
 def:pub ClientApp() -> JsxElement {
     has is_authenticated: bool = jacIsLoggedIn();
     has current_view: str = "Dashboard";
-    has live_incidents: list = sample_incidents();
+    has live_incidents: list = [];
     has demo_incidents: list = sample_incidents();
     has selected_incident: IncidentRecord = None;
     has search: str = "";
@@ -20,6 +20,64 @@ def:pub ClientApp() -> JsxElement {
     has scenario: str = "Plumbing";
     has incoming_text: str = "The sink in Unit 4B is leaking and water is getting on the floor.";
     has demo_stage: int = 0;
+    has loading_live: bool = False;
+    has initial_load: bool = False;
+
+    if not initial_load {
+        initial_load = True;
+        setTimeout(load_live_data, 100);
+        setInterval(lambda -> None {
+            load_live_data();
+        }, 3000);
+    }
+    
+    async def load_live_data() -> None {
+        loading_live = True;
+        try {
+            raw_res = await __doFuncFetch("get_messages", {});
+            messages = [];
+            if raw_res and raw_res["messages"] {
+                messages = raw_res["messages"];
+            } elif raw_res and raw_res["data"] and raw_res["data"]["result"] and raw_res["data"]["result"]["messages"] {
+                messages = raw_res["data"]["result"]["messages"];
+            }
+            
+            # Allow clearing list if empty
+            if raw_res and raw_res["data"] and raw_res["data"]["result"] and len(raw_res["data"]["result"]["messages"] if raw_res["data"]["result"]["messages"] else []) == 0 {
+                messages = [];
+            }
+
+            if True {
+                new_incidents = [];
+                id_counter = 1000;
+                for msg in messages {
+                    inc = create_incident_record(
+                        "INC-" + str(id_counter),
+                        str(msg["time"]),
+                        str(msg["body"]),
+                        str(msg["from"]),
+                        str(msg["from"]),
+                        "Unknown Property",
+                        "?",
+                        "Incoming SMS",
+                        "Normal",
+                        "Open",
+                        "0%",
+                        "Awaiting AI Triage...",
+                        "Tenant " + str(msg["from"]) + " sent a message: " + str(msg["body"]),
+                        "??"
+                    );
+                    new_incidents.append(inc);
+                    id_counter += 1;
+                }
+                live_incidents = new_incidents;
+            }
+        } except Exception as ex {
+            print("Failed to sync live data: " + str(ex));
+        }
+        loading_live = False;
+    }
+
     has user_name: str = "";
     has user_email: str = "";
 
@@ -32,7 +90,7 @@ def:pub ClientApp() -> JsxElement {
                 user_name = data["name"] if (data and data["name"]) else "";
                 user_email = data["email"] if (data and data["email"]) else "";
             } except Exception {
-                pass;
+                print("Error fetching profile");
             }
         }
     }
@@ -131,11 +189,20 @@ def:pub ClientApp() -> JsxElement {
                         <h2 className="text-sm font-medium text-slate-900">{current_view}</h2>
                     </div>
                     
+
                     <div className="flex items-center gap-4">
+                        <button 
+                            onClick={load_live_data} 
+                            disabled={loading_live}
+                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-md text-xs font-semibold shadow-sm transition disabled:opacity-50"
+                        >
+                            {("Syncing..." if loading_live else "Sync Live Data")}
+                        </button>
                         <div className="text-[10px] font-mono text-slate-400 uppercase tracking-widest px-2 py-1 bg-slate-100 rounded-sm">
                             Rentora OS v1
                         </div>
                     </div>
+
                 </header>
 
                 
