@@ -19,6 +19,7 @@ def:pub ClientApp() -> JsxElement {
     has sidebar_collapsed: bool = False;
     has viewing_detail: bool = False;
     has _triaged_sids: any = {};
+    has _triage_cache: any = {};
 
     if not initial_load {
         initial_load = True;
@@ -76,6 +77,14 @@ def:pub ClientApp() -> JsxElement {
                 }
             }
 
+            # Restore cached triage results (Twilio API returns fresh data without triage each poll)
+            for msg in messages {
+                sid = str(msg["sid"]) if msg["sid"] else "";
+                if sid and not msg["triage"] and _triage_cache[sid] {
+                    msg["triage"] = _triage_cache[sid];
+                }
+            }
+
             # Auto-run triage once per SID per session (prevents rate limit spam)
             needs_triage = [];
             for msg in messages {
@@ -93,6 +102,7 @@ def:pub ClientApp() -> JsxElement {
                         triage_val = None;
                         if tr and tr["reports"] and tr["reports"][0] { triage_val = tr["reports"][0]; }
                         if triage_val { msg["triage"] = triage_val; }
+                        if triage_val and msg["sid"] { _triage_cache[str(msg["sid"])] = triage_val; }
                     } except Exception {}
                 }
             }
