@@ -284,6 +284,24 @@ def:pub ClientApp() -> JsxElement {
                     
 
                     <div className="flex items-center gap-4">
+                        {viewing_detail and current_view == "Incidents" and selected_incident and (
+                            <div className="flex text-xs text-slate-600 gap-4 border border-slate-200 bg-white shadow-sm px-3 py-1.5 rounded-lg">
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Urgency</span>
+                                    <span className="font-semibold text-rose-600">{selected_incident.urgency}</span>
+                                </div>
+                                <div className="w-px bg-slate-200"></div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Property</span>
+                                    <span className="font-semibold text-slate-800">{selected_incident.property} {selected_incident.unit}</span>
+                                </div>
+                                <div className="w-px bg-slate-200"></div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">Status</span>
+                                    <span className="font-semibold text-slate-800">{selected_incident.status}</span>
+                                </div>
+                            </div>
+                        )}
                         <button 
                             onClick={load_live_data} 
                             disabled={loading_live}

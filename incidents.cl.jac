@@ -321,41 +321,6 @@ def:pub AiFlowDetailView(incident: IncidentRecord, on_back: any) -> JsxElement {
     return (
         <div className="flex w-full h-[calc(100vh-56px)] overflow-hidden">
             <div className="flex-1 flex flex-col h-full bg-[#F8FAFC]">
-                <div className="h-[110px] px-8 py-5 border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-10 shadow-sm shrink-0 flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={on_back}
-                            className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50 transition shadow-sm"
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
-                            Back
-                        </button>
-                        <div>
-                            <div className="flex gap-3 items-center mb-1">
-                                <div className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded uppercase tracking-wider">AI Operations Graph</div>
-                                <span className="text-xs text-slate-500 font-mono">{incident.id}</span>
-                            </div>
-                            <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-snug">{incident.category} — {incident.tenant}</h1>
-                        </div>
-                    </div>
-                    <div className="flex text-sm text-slate-600 gap-6 border border-slate-200 bg-white shadow-sm px-4 py-2 rounded-lg">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Urgency</span>
-                            <span className="font-semibold text-rose-600 border-b border-rose-200">{incident.urgency}</span>
-                        </div>
-                        <div className="w-px bg-slate-200"></div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Property</span>
-                            <span className="font-semibold text-slate-800">{incident.property} {incident.unit}</span>
-                        </div>
-                        <div className="w-px bg-slate-200"></div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Status</span>
-                            <span className="font-semibold text-slate-800">{incident.status}</span>
-                        </div>
-                    </div>
-                </div>
-
                 <div className="flex-1 overflow-auto p-12" style={{"backgroundImage": "radial-gradient(#e2e8f0 1.5px, transparent 1.5px)", "backgroundSize": "30px 30px"}}>
                     <div className="flex items-center min-w-max h-full pb-10">
                         {graph_comp}
