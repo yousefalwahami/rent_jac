@@ -211,7 +211,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
                                 <h3 className="font-semibold text-slate-900 pr-8 mb-2">{p["property_name"]}</h3>
                                 <p className="text-sm text-slate-500 mb-6">{p["street_address"] if p["street_address"] else "No address"}</p>
                                 <div className="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center text-xs font-medium text-slate-600">
-                                    <span>{str(t_count) + " " + (t_count == 1 and "Tenant" or "Tenants")}</span>
+                                    <span>{t_count} {t_count == 1 and "Tenant" or "Tenants"}</span>
                                     <button onClick={lambda -> None { tab = "Tenants"; }} className="text-slate-500 hover:text-slate-900 flex items-center gap-1">View Tenants <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg></button>
                                 </div>
                             </div>
