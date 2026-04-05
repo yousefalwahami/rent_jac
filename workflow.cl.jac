@@ -18,6 +18,22 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
 
     console.log("[workflow] incident:", incident);
     console.log("[workflow] has_message:", has_message, "triage_ran:", triage_ran, "has_vendor:", has_vendor, "is_resolved:", is_resolved);
+    console.log("[workflow] timings:", incident.timings);
+
+    node_timings = {
+        "intake":          incident.timings["classify_ms"] if (incident.timings and "classify_ms" in incident.timings) else None,
+        "triage_urgency":  incident.timings["urgency_ms"]  if (incident.timings and "urgency_ms" in incident.timings)  else None,
+        "triage_entity":   incident.timings["entity_ms"]   if (incident.timings and "entity_ms" in incident.timings)   else None,
+        "triage_class":    incident.timings["classify_ms"] if (incident.timings and "classify_ms" in incident.timings) else None,
+        "context_vendor":  incident.timings["vendor_ms"]   if (incident.timings and "vendor_ms" in incident.timings)   else None,
+        "risk_assess":     incident.timings["risk_ms"]     if (incident.timings and "risk_ms" in incident.timings)     else None,
+        "msg_tenant":      incident.timings["comms_ms"]    if (incident.timings and "comms_ms" in incident.timings)    else None,
+        "msg_owner":       incident.timings["comms_ms"]    if (incident.timings and "comms_ms" in incident.timings)    else None,
+        "context_history": 2,
+        "root":            0,
+        "gate_approval":   None,
+        "action_dispatch": None
+    };
 
     nodes = [
         {"id": "root",            "label": "Incident Origin",  "x": 50,   "y": 300, "status": 2 if has_message else 0,                       "desc": "Inbound SMS message received",          "output": incident.message },
@@ -124,8 +140,9 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
                                     <div className="flex items-center justify-between">
                                         <h4 className={label_classes}>{n["label"]}</h4>
                                         <div className="flex gap-1.5 shrink-0 ml-2 items-center">
+                                            {node_timings[n["id"]] and n["status"] == 2 and <span className="text-[9px] font-mono font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">{str(node_timings[n["id"]]) + "ms"}</span>}
                                             {n["status"] == 1 and <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-ping"></span>}
-                                            {n["status"] == 2 and <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#34d399]"></span>}
+                                            {n["status"] == 2 and not node_timings[n["id"]] and <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#34d399]"></span>}
                                             {n["status"] == 3 and <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_#fbbf24]"></span>}
                                         </div>
                                     </div>
@@ -182,6 +199,10 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
                                 <h4 className="text-[10px] font-mono font-extrabold uppercase tracking-widest text-emerald-600 mb-3">Output</h4>
                                 <div className="font-mono text-sm font-medium text-emerald-800 bg-white border border-emerald-100 p-4 rounded-xl text-wrap break-words leading-relaxed shadow-sm">
                                     > {selected_node["output"]}
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-emerald-100 flex items-center justify-between flex-wrap gap-2">
+                                    {incident.time and <span className="text-[10px] font-mono text-emerald-600 opacity-70">{incident.time}</span>}
+                                    {node_timings[selected_node["id"]] and <span className="text-[10px] font-mono font-bold text-emerald-700 bg-white border border-emerald-200 px-2 py-0.5 rounded-full shadow-sm">{str(node_timings[selected_node["id"]]) + "ms"}</span>}
                                 </div>
                             </div>
                         )}
