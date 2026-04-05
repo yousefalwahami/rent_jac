@@ -330,16 +330,40 @@ def:pub IncidentsView(props: dict) -> JsxElement {
     } else {
         for incident in filtered {
             is_sel = selected != None and incident.id == selected.id;
-            bg_cls = "bg-indigo-50/50 border-l-4 border-indigo-500 border-y border-r border-indigo-600" if is_sel else "bg-white border hover:bg-slate-50 border-slate-200 cursor-pointer";
+            bg_cls = "bg-white border-indigo-500 shadow-md ring-1 ring-indigo-500/20 z-10 scale-[1.01] transform" if is_sel else "bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm hover:bg-slate-50 opacity-90 hover:opacity-100";
             cat_color = category_dot(incident.category);
+            
+            # Use urgency styling 
+            urgency_col = "bg-slate-100 text-slate-600";
+            if incident.urgency == "Critical" { urgency_col = "bg-rose-100 text-rose-700"; }
+            elif incident.urgency == "High" { urgency_col = "bg-orange-100 text-orange-700"; }
+            
+            # Format time if present
+            disp_time = incident.time if incident.time else "Just now";
+            
             incident_list_items.append(
-                <div key={incident.id} onClick={lambda -> None { set_selected(incident); select_node("n1"); }} className={"px-4 py-3 mb-2 mx-2 rounded-lg transition-colors " + bg_cls}>
-                    <div className="flex justify-between items-start mb-1">
-                        <span className="text-[11px] font-semibold text-slate-800">{incident.property} · Unit {incident.unit}</span>
-                        <span className={"w-2 h-2 mt-1 rounded-full " + cat_color}></span>
+                <div 
+                    key={incident.id} 
+                    onClick={lambda -> None { set_selected(incident); select_node("n1"); }} 
+                    className={"cursor-pointer rounded-xl p-4 mx-3 mb-3 transition-all duration-200 " + bg_cls}
+                >
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                            <span className={"w-2 h-2 rounded-full " + cat_color}></span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{incident.category}</span>
+                        </div>
+                        <span className="text-[10px] font-medium text-slate-400">{disp_time}</span>
                     </div>
-                    <p className="text-sm font-bold text-slate-900 mb-1 truncate">{incident.tenant}</p>
-                    <p className="text-xs text-slate-500 truncate">{incident.message}</p>
+                    
+                    <h3 className="text-[15px] font-semibold text-slate-900 leading-tight mb-1 truncate">{incident.tenant}</h3>
+                    <p className="text-[13px] text-slate-600 line-clamp-2 leading-relaxed mb-3">{incident.message}</p>
+                    
+                    <div className="flex items-center justify-between mt-auto">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{incident.property} {incident.unit}</span>
+                        </div>
+                        <span className={"text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider " + urgency_col}>{incident.urgency}</span>
+                    </div>
                 </div>
             );
         }
