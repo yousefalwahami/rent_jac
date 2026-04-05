@@ -10,11 +10,12 @@ def:pub SmsInboxView() -> JsxElement {
         loading = True;
         error = "";
         try {
-            result = await __doFuncFetch("get_messages", {});
-            if result and result["messages"] {
-                messages = result["messages"];
-            } else {
-                messages = [];
+            raw_res = await __doFuncFetch("get_messages", {});
+            messages = [];
+            if raw_res and raw_res["messages"] {
+                messages = raw_res["messages"];
+            } elif raw_res and raw_res["data"] and raw_res["data"]["result"] and raw_res["data"]["result"]["messages"] {
+                messages = raw_res["data"]["result"]["messages"];
             }
         } except Exception as ex {
             error = "Failed to load messages: " + str(ex);
