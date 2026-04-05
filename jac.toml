@@ -34,7 +34,7 @@ plugins = ["tailwindcss()"]
 lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
 
 [plugins.byllm.model]
-default_model = "groq/llama-3.1-8b-instant"
+default_model = "groq/llama-3.3-70b-versatile"
 
 [plugins.byllm.call_params]
 temperature = 0.2
