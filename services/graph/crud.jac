@@ -120,3 +120,50 @@ walker list_vendors {
         }
     }
 }
+
+
+walker register_tenant {
+    has tenant_name: str = "";
+    has tenant_phone: str = "";
+    has tenant_email: str = "";
+    has unit_number: str = "";
+    has rent_amount: float = 0.0;
+    has lease_start: str = "";
+    has lease_end: str = "";
+
+    can start with Root entry {
+        visit [-->][?:Property];
+    }
+
+    can find_unit with Property entry {
+        units = [->: HasUnit :->];
+        for u in units {
+            if u.number == self.unit_number {
+                # Create lease + tenant
+                lease = Lease(
+                    start_date=self.lease_start,
+                    end_date=self.lease_end,
+                    rent_amount=self.rent_amount,
+                    deposit=self.rent_amount
+                );
+                u +>: HasLease :+> lease;
+                lease +>: HasTenant :+> Tenant(
+                    name=self.tenant_name,
+                    phone=self.tenant_phone,
+                    email=self.tenant_email,
+                    payment_status="current",
+                    move_in_date=self.lease_start
+                );
+                report {
+                    "status": "registered",
+                    "tenant": self.tenant_name,
+                    "phone": self.tenant_phone,
+                    "unit": self.unit_number,
+                    "property": here.name
+                };
+                disengage;
+            }
+        }
+        report {"status": "error", "message": "Unit " + self.unit_number + " not found"};
+    }
+}
