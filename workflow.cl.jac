@@ -48,8 +48,8 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
         {"id": "risk_assess",     "label": "Risk Analyst",     "x": 1210, "y": 300, "status": 2 if has_vendor else 0,                         "desc": "Assesses liability and cost risks",      "output": "Low Risk" if has_vendor else "—" },
         {"id": "msg_tenant",      "label": "Tenant Reply",     "x": 1500, "y": 150, "status": 2 if has_vendor else 0,                         "desc": "Drafts acknowledgment SMS",              "output": "Draft Ready" if has_vendor else "—" },
         {"id": "msg_owner",       "label": "Owner Alert",      "x": 1500, "y": 300, "status": 2 if has_vendor else 0,                         "desc": "Drafts approval request",                "output": "Draft Ready" if has_vendor else "—" },
-        {"id": "gate_approval",   "label": "Approval Gate",    "x": 1500, "y": 450, "status": 2 if (is_resolved or is_approved or is_rejected) else (3 if is_pending else 0),  "desc": "Human in the loop checkpoint",          "output": "Approved" if (is_resolved or is_approved) else ("Rejected" if is_rejected else ("Pending" if is_pending else "—")) },
-        {"id": "action_dispatch", "label": "Dispatch",         "x": 1790, "y": 450, "status": 2 if (is_resolved or is_approved) else (4 if is_rejected else 0),                   "desc": "Dispatches vendor",                      "output": "YES — Dispatched" if (is_resolved or is_approved) else ("NO — Rejected" if is_rejected else "—") }
+        {"id": "gate_approval",   "label": "Approval Gate",    "x": 1500, "y": 450, "status": 2 if (is_resolved or is_approved) else (4 if is_rejected else (3 if is_pending else 0)),  "desc": "Human in the loop checkpoint",          "output": "Approved" if (is_resolved or is_approved) else ("Rejected" if is_rejected else ("Pending" if is_pending else "—")) },
+        {"id": "action_dispatch", "label": "Dispatch",         "x": 1790, "y": 450, "status": 2 if (is_resolved or is_approved) else (4 if is_rejected else 0),                    "desc": "Dispatches vendor",                      "output": "YES — Dispatched" if (is_resolved or is_approved) else ("NO — Rejected" if is_rejected else "—") }
     ];
 
     edges = [
@@ -113,8 +113,9 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
                             cp2_x = str(n2["x"] - 50);
                             d_path = "M " + p_x1 + " " + p_y1 + " C " + cp1_x + " " + p_y1 + ", " + cp2_x + " " + p_y2 + ", " + p_x2 + " " + p_y2;
 
+                            rejected_edge = (n1["status"] == 4 or n2["status"] == 4) and active;
                             stroke_color = "#cbd5e1";
-                            if active { stroke_color = "#6366f1" if flowing else "#10b981"; }
+                            if active { stroke_color = "#ef4444" if rejected_edge else ("#6366f1" if flowing else "#10b981"); }
                             stroke_w  = "2.5" if active else "2";
                             class_n   = "transition-all duration-700 opacity-100" if active else "transition-all duration-700 opacity-30";
                             dash_a    = "6 6" if flowing else "none";
