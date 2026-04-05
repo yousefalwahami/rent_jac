@@ -1,5 +1,6 @@
 import from "@jac/runtime" { __doFuncFetch, jacIsLoggedIn, jacLogout }
 cl import from .dashboard { dashboard_view }
+cl import from .tenants_properties { TenantsPropertiesView }
 cl import from .incidents { IncidentsView }
 cl import from .settings { SettingsView }
 cl import from .sms_inbox { SmsInboxView }
@@ -49,7 +50,12 @@ def:pub ClientApp() -> JsxElement {
                 new_incidents = [];
                 id_counter = 1000;
                 for msg in messages {
-                    # Check if this message has triage data from the AI pipeline
+                    t_name = str(msg["tenant_name"]) if msg["matched"] else str(msg["from"]);
+                    p_name = str(msg["property_name"]) if msg["matched"] else "Unknown Property";
+                    u_name = str(msg["unit"]) if msg["matched"] else "?";
+                    
+                    id_val = str(msg["sid"]) if msg["sid"] else str(id_counter);
+
                     triage_data = msg["triage"] if ("triage" in msg and msg["triage"]) else None;
                     maint_result = None;
                     if triage_data and triage_data["event_type"] == "maintenance" and triage_data["result"] {
@@ -60,10 +66,10 @@ def:pub ClientApp() -> JsxElement {
                     inc_urgency = "Normal";
                     inc_status = "Open";
                     inc_summary = "Awaiting AI Triage...";
-                    inc_tenant = str(msg["from"]);
-                    inc_property = "Unknown Property";
-                    inc_unit = "?";
-                    inc_owner_note = "Tenant " + str(msg["from"]) + " sent: " + str(msg["body"]);
+                    inc_tenant = t_name;
+                    inc_property = p_name;
+                    inc_unit = u_name;
+                    inc_owner_note = "Tenant " + t_name + " sent a message: " + str(msg["body"]);
                     inc_assignee = "";
                     inc_tenant_reply = "";
                     inc_recommended = "";
@@ -72,21 +78,20 @@ def:pub ClientApp() -> JsxElement {
 
                     if maint_result {
                         inc_category = str(maint_result["category"]).split(".")[-1] if maint_result["category"] else "Maintenance";
-                        # Capitalize first letter
                         if inc_category { inc_category = inc_category[0].toUpperCase() + inc_category.slice(1); }
                         inc_urgency = str(maint_result["urgency"]).split(".")[-1] if maint_result["urgency"] else "Medium";
                         if inc_urgency { inc_urgency = inc_urgency[0].toUpperCase() + inc_urgency.slice(1); }
                         inc_status = "pending_approval";
                         inc_summary = maint_result["diagnosis"] if maint_result["diagnosis"] else "";
-                        inc_tenant = maint_result["tenant"] if maint_result["tenant"] else str(msg["from"]);
-                        inc_property = maint_result["property"] if maint_result["property"] else "Unknown";
-                        inc_unit = maint_result["unit"] if maint_result["unit"] else "?";
+                        inc_tenant = maint_result["tenant"] if maint_result["tenant"] else t_name;
+                        inc_property = maint_result["property"] if maint_result["property"] else p_name;
+                        inc_unit = maint_result["unit"] if maint_result["unit"] else u_name;
                         inc_owner_note = maint_result["owner_alert"] if maint_result["owner_alert"] else "";
                         inc_assignee = maint_result["vendor"] if maint_result["vendor"] else "";
                         inc_tenant_reply = maint_result["tenant_reply"] if maint_result["tenant_reply"] else "";
                         inc_recommended = maint_result["recommended_action"] if maint_result["recommended_action"] else "";
                         inc_confidence = "95%";
-                        inc_property_code = inc_property[0:2].toUpperCase() + "-" + inc_unit if inc_property else "??";
+                        inc_property_code = inc_property[0:2].toUpperCase() + "-" + inc_unit if inc_property and inc_property != "Unknown Property" else "??";
                     } elif triage_data and triage_data["event_type"] {
                         event_name = str(triage_data["event_type"]);
                         inc_category = event_name[0].toUpperCase() + event_name.slice(1);
@@ -99,7 +104,7 @@ def:pub ClientApp() -> JsxElement {
                     }
 
                     inc = create_incident_record(
-                        "INC-" + str(id_counter),
+                        "INC-" + id_val,
                         str(msg["time"]),
                         str(msg["body"]),
                         str(msg["from"]),
@@ -113,6 +118,12 @@ def:pub ClientApp() -> JsxElement {
                         inc_summary,
                         inc_owner_note,
                         inc_property_code
+
+                    inc = create_incident_record(
+                        "INC-" + id_val,
+                        str(msg["time"]),
+                        str(msg["body"]),
+                        str(msg["from"]),
                     );
                     inc.recommended_action = inc_recommended;
                     inc.tenant_reply = inc_tenant_reply;
@@ -159,9 +170,13 @@ def:pub ClientApp() -> JsxElement {
     }
 
     def content() -> JsxElement {
-        if current_view == "Dashboard" { return dashboard_view(live_incidents, selected_incident, set_selected); }
+        if current_view == "Dashboard" { return dashboard_view(live_incidents, selected_incident, set_selected, lambda inc: IncidentRecord -> None {
+            __doFuncFetch("delete_message", {"msg_id": inc.id});
+            setTimeout(load_live_data, 300);
+        }); }
         if current_view == "Incidents" { return <IncidentsView incidents={live_incidents} selected={selected_incident} set_selected={set_selected} search={search} set_search={lambda value: str -> None { search = value; }} urgency_filter={urgency_filter} set_urgency={lambda value: str -> None { urgency_filter = value; }} category_filter={category_filter} set_category={lambda value: str -> None { category_filter = value; }} viewing_detail={viewing_detail} set_viewing_detail={lambda v: bool -> None { viewing_detail = v; }} />; }
         if current_view == "SMS Inbox" { return <SmsInboxView />; }
+        if current_view == "Tenants & Properties" { return <TenantsPropertiesView />; }
         return <SettingsView />;
     }
 
@@ -187,6 +202,7 @@ def:pub ClientApp() -> JsxElement {
 
     icon_dashboard = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>;
     icon_incidents = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>;
+    icon_tenants_props = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>;
     icon_sms = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>;
     icon_settings = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
 
@@ -223,6 +239,7 @@ def:pub ClientApp() -> JsxElement {
                     <div className="space-y-1 w-full">
                         {sidebar_item("Dashboard", icon_dashboard, current_view == "Dashboard", lambda -> None { current_view = "Dashboard"; }, "Live")}
                         {sidebar_item("Incidents", icon_incidents, current_view == "Incidents", lambda -> None { current_view = "Incidents"; }, str(len(live_incidents)))}
+                        {sidebar_item("Tenants & Properties", icon_tenants_props, current_view == "Tenants & Properties", lambda -> None { current_view = "Tenants & Properties"; }, "")}
                         {sidebar_item("SMS Inbox", icon_sms, current_view == "SMS Inbox", lambda -> None { current_view = "SMS Inbox"; }, "Live")}
                         {sidebar_item("Settings", icon_settings, current_view == "Settings", lambda -> None { current_view = "Settings"; }, "")}
                     </div>

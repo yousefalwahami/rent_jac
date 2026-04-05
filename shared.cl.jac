@@ -100,16 +100,23 @@ def:pub sidebar_item(label: str, active: bool, on_click: any, meta: str) -> JsxE
     );
 }
 
-def:pub incident_row(incident: IncidentRecord, active: bool, on_click: any) -> JsxElement {
+def:pub incident_row(incident: IncidentRecord, active: bool, on_click: any, delete_incident: any = None) -> JsxElement {
     return (
-        <button onClick={on_click} className={"flex flex-col gap-2 w-full text-left p-3 rounded-sm border transition-all duration-150 " + (active and "bg-indigo-50/50 border-indigo-200 shadow-sm" or "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50")}>
+        <button onClick={on_click} className={"group flex flex-col gap-2 w-full text-left p-3 rounded-sm border transition-all duration-150 " + (active and "bg-indigo-50/50 border-indigo-200 shadow-sm" or "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50")}>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <span className={"w-2 h-2 rounded-full " + category_dot(incident.category)}></span>
                     <span className="text-sm font-semibold text-slate-900">{incident.tenant}</span>
                     <span className="text-xs text-slate-500 font-mono">{incident.id}</span>
                 </div>
-                <span className="text-xs text-slate-400">{incident.time}</span>
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400">{incident.time}</span>
+                    {delete_incident and (
+                        <div onClick={lambda e: any -> None { e.stopPropagation(); delete_incident(incident); }} className="hover:text-red-500 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity p-1">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </div>
+                    )}
+                </div>
             </div>
             <div className="text-xs text-slate-600 mt-1 mb-2 truncate">
                 {incident.message}
