@@ -1,13 +1,22 @@
 cl import from shared { panel_classes }
 
+def ls_load(key: str) -> list {
+    try {
+        raw = localStorage.getItem(key);
+        return JSON.parse(raw) if raw else [];
+    } except Exception { return []; }
+}
+
+def ls_save(key: str, val: list) -> None {
+    localStorage.setItem(key, JSON.stringify(val));
+}
+
 def:pub TenantsPropertiesView() -> JsxElement {
-    has properties: list = [];
-    has tenants: list = [];
-    has loading: bool = False;
+    has properties: list = ls_load("rentora_properties");
+    has tenants: list = ls_load("rentora_tenants");
     has tab: str = "Properties";
     has show_prop_modal: bool = False;
     has show_tenant_modal: bool = False;
-    has initial_load: bool = False;
 
     has form_prop_name: str = "";
     has form_prop_address: str = "";
@@ -17,111 +26,78 @@ def:pub TenantsPropertiesView() -> JsxElement {
     has form_tenant_prop_id: str = "";
     has form_tenant_rent: str = "1200";
 
-    async def load_data() -> None {
-        loading = True;
-        try {
-            p_res = root spawn list_properties();
-            raw_props = p_res.reports if p_res else [];
-            properties = [];
-            for p in raw_props {
-                properties.append({
-                    "id": str(p["id"]),
-                    "property_name": str(p["name"]),
-                    "street_address": str(p["address"]),
-                    "unit_count": p.get("unit_count", 0) if hasattr(p, "get") else 0
-                });
-            }
-
-            if len(properties) == 0 {
-                root spawn seed_graph();
-                p_res2 = root spawn list_properties();
-                raw2 = p_res2.reports if p_res2 else [];
-                properties = [];
-                for p in raw2 {
-                    properties.append({
-                        "id": str(p["id"]),
-                        "property_name": str(p["name"]),
-                        "street_address": str(p["address"]),
-                        "unit_count": p.get("unit_count", 0) if hasattr(p, "get") else 0
-                    });
-                }
-            }
-
-            t_res = root spawn list_tenants();
-            raw_tenants = t_res.reports if t_res else [];
-            tenants = [];
-            for t in raw_tenants {
-                tenants.append({
-                    "id": str(t["id"]),
-                    "full_name": str(t["full_name"]),
-                    "phone_number": str(t["phone_number"]),
-                    "unit_number": str(t["unit_number"]),
-                    "property_id": str(t["property_id"]),
-                    "property_name": str(t["property_name"])
-                });
-            }
-        } except Exception as e {
-            console.error("load_data error: " + str(e));
-        }
-        loading = False;
-    }
-
-    if not initial_load {
-        initial_load = True;
-        setTimeout(load_data, 100);
+    def reload() -> None {
+        properties = ls_load("rentora_properties");
+        tenants = ls_load("rentora_tenants");
     }
 
     async def save_property() -> None {
-        if form_prop_name {
-            root spawn add_property_node(name=form_prop_name, address=form_prop_address);
-        }
+        if not form_prop_name { return; }
+        p = {"id": "P-" + str(Date.now()), "property_name": form_prop_name, "street_address": form_prop_address};
+        all_p = ls_load("rentora_properties");
+        all_p.append(p);
+        ls_save("rentora_properties", all_p);
         show_prop_modal = False;
         form_prop_name = "";
         form_prop_address = "";
-        await load_data();
+        reload();
+        # Sync to graph for triage pipeline
+        try { root spawn add_property_node(name=p["property_name"], address=p["street_address"]); } except Exception {}
     }
 
     async def delete_property(p_id: str) -> None {
-        if window.confirm("Delete this property and all its data?") {
-            root spawn delete_property_node(property_id=p_id);
-            await load_data();
+        if window.confirm("Delete this property and its tenants?") {
+            ls_save("rentora_properties", [p for p in ls_load("rentora_properties") if p["id"] != p_id]);
+            ls_save("rentora_tenants", [t for t in ls_load("rentora_tenants") if t["property_id"] != p_id]);
+            reload();
         }
     }
 
     async def save_tenant() -> None {
-        if form_tenant_name and form_tenant_phone and form_tenant_unit {
-            prop_name = "";
-            for p in properties {
-                if p["id"] == form_tenant_prop_id {
-                    prop_name = p["property_name"];
-                    break;
-                }
-            }
-            rent = 0.0;
-            try { rent = float(form_tenant_rent); } except Exception {}
-            root spawn register_tenant(
-                tenant_name=form_tenant_name,
-                tenant_phone=form_tenant_phone,
-                unit_number=form_tenant_unit,
-                rent_amount=rent,
-                lease_start="2025-01-01",
-                lease_end="2026-12-31",
-                property_name=prop_name
-            );
+        if not form_tenant_name or not form_tenant_phone or not form_tenant_unit { return; }
+        prop_name = "";
+        for p in ls_load("rentora_properties") {
+            if p["id"] == form_tenant_prop_id { prop_name = p["property_name"]; break; }
         }
+        t = {
+            "id": "T-" + str(Date.now()),
+            "full_name": form_tenant_name,
+            "phone_number": form_tenant_phone,
+            "unit_number": form_tenant_unit,
+            "property_id": form_tenant_prop_id,
+            "property_name": prop_name,
+            "rent": form_tenant_rent
+        };
+        all_t = ls_load("rentora_tenants");
+        all_t.append(t);
+        ls_save("rentora_tenants", all_t);
         show_tenant_modal = False;
         form_tenant_name = "";
         form_tenant_phone = "";
         form_tenant_unit = "";
         form_tenant_prop_id = "";
         form_tenant_rent = "1200";
-        await load_data();
+        reload();
+        # Sync to graph for triage phone matching
+        try {
+            rent_f = 0.0;
+            try { rent_f = float(t["rent"]); } except Exception {}
+            root spawn register_tenant(
+                tenant_name=t["full_name"],
+                tenant_phone=t["phone_number"],
+                unit_number=t["unit_number"],
+                rent_amount=rent_f,
+                lease_start="2025-01-01",
+                lease_end="2026-12-31",
+                property_name=prop_name
+            );
+        } except Exception {}
     }
 
     async def delete_tenant(t_id: str) -> None {
         if window.confirm("Remove this tenant?") {
-            root spawn delete_tenant_node(tenant_id=t_id);
-            await load_data();
+            ls_save("rentora_tenants", [t for t in ls_load("rentora_tenants") if t["id"] != t_id]);
+            reload();
         }
     }
 
@@ -130,7 +106,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Tenants & Properties</h1>
-                    <p className="text-sm text-slate-500 mt-1">Manage your portfolio to automatically match incoming SMS.</p>
+                    <p className="text-sm text-slate-500 mt-1">Saved locally. Tenants are synced to the AI pipeline for automatic SMS matching.</p>
                 </div>
                 <div className="flex gap-3">
                     <button onClick={lambda -> None { form_prop_name = ""; form_prop_address = ""; show_prop_modal = True; }} className="bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-slate-50 transition">
@@ -151,38 +127,26 @@ def:pub TenantsPropertiesView() -> JsxElement {
                 </button>
             </div>
 
-            {loading and <div className="p-12 text-center text-slate-500">Loading...</div>}
-
-            {tab == "Properties" and not loading and (
+            {tab == "Properties" and (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {len(properties) == 0 and (
                         <div className="col-span-full bg-slate-50 border border-dashed border-slate-300 rounded-xl p-12 flex flex-col items-center justify-center text-center">
                             <h3 className="text-slate-900 font-medium mb-1">No properties yet</h3>
-                            <p className="text-slate-500 text-sm mb-4">Add your first property to start matching inbound tenant messages.</p>
-                            <button onClick={lambda -> None { form_prop_name = ""; form_prop_address = ""; show_prop_modal = True; }} className="text-sm font-medium tracking-tight text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm">
-                                Add Property
-                            </button>
+                            <p className="text-slate-500 text-sm mb-4">Add your first property to start managing tenants.</p>
+                            <button onClick={lambda -> None { form_prop_name = ""; form_prop_address = ""; show_prop_modal = True; }} className="text-sm font-medium text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm">Add Property</button>
                         </div>
                     )}
                     {properties.map(lambda p: any -> JsxElement {
-                        t_count = 0;
-                        for t in tenants {
-                            if t["property_id"] == p["id"] {
-                                t_count += 1;
-                            }
-                        }
+                        t_count = len([t for t in tenants if t["property_id"] == p["id"]]);
                         return (
-                            <div key={p["id"]} className={panel_classes() + " p-5 flex flex-col transition hover:border-slate-300 relative group"}>
+                            <div key={p["id"]} className={panel_classes() + " p-5 flex flex-col group relative hover:border-slate-300 transition"}>
                                 <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button onClick={lambda -> None { delete_property(p["id"]); }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Delete">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                     </button>
                                 </div>
-                                <div className="flex items-start justify-between mb-3 pr-10">
-                                    <h3 className="font-semibold text-slate-900 leading-tight">{p["property_name"]}</h3>
-                                </div>
-                                <span className="text-[10px] bg-slate-100 text-slate-600 font-mono px-2 py-1 rounded tracking-wider w-fit mb-3">{p["id"][0:8]}...</span>
-                                <p className="text-sm text-slate-500 mb-6">{p["street_address"]}</p>
+                                <h3 className="font-semibold text-slate-900 pr-8 mb-2">{p["property_name"]}</h3>
+                                <p className="text-sm text-slate-500 mb-6">{p["street_address"] if p["street_address"] else "No address"}</p>
                                 <div className="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center text-xs font-medium text-slate-600">
                                     <span>{t_count} {t_count == 1 and "Tenant" or "Tenants"}</span>
                                     <button onClick={lambda -> None { tab = "Tenants"; }} className="text-slate-500 hover:text-slate-900">View &rarr;</button>
@@ -193,47 +157,43 @@ def:pub TenantsPropertiesView() -> JsxElement {
                 </div>
             )}
 
-            {tab == "Tenants" and not loading and (
+            {tab == "Tenants" and (
                 <div className={panel_classes() + " overflow-hidden"}>
                     {len(tenants) == 0 and (
-                        <div className="p-12 text-center flex flex-col items-center justify-center bg-slate-50 m-2 rounded-lg border border-dashed border-slate-200">
+                        <div className="p-12 text-center flex flex-col items-center bg-slate-50 m-2 rounded-lg border border-dashed border-slate-200">
                             <h3 className="text-slate-900 font-medium mb-1">No tenants yet</h3>
-                            <p className="text-slate-500 text-sm mb-4">Add a tenant linked to a unit to enable SMS matching from Twilio.</p>
-                            <button onClick={lambda -> None { form_tenant_name = ""; form_tenant_phone = ""; form_tenant_unit = ""; form_tenant_prop_id = (properties[0]["id"] if len(properties) > 0 else ""); show_tenant_modal = True; }} className="text-sm font-medium tracking-tight text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm">
-                                Add Tenant
-                            </button>
+                            <p className="text-slate-500 text-sm mb-4">Add a tenant to enable automatic SMS matching.</p>
+                            <button onClick={lambda -> None { form_tenant_name = ""; form_tenant_phone = ""; form_tenant_unit = ""; form_tenant_prop_id = (properties[0]["id"] if len(properties) > 0 else ""); show_tenant_modal = True; }} className="text-sm font-medium text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm">Add Tenant</button>
                         </div>
                     )}
                     {len(tenants) > 0 and (
-                        <table className="w-full text-left text-sm whitespace-nowrap">
-                            <thead className="bg-slate-50 text-slate-500">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                 <tr className="border-b border-slate-200">
                                     <th className="px-6 py-3 font-medium">Tenant</th>
                                     <th className="px-6 py-3 font-medium">Phone</th>
                                     <th className="px-6 py-3 font-medium">Unit</th>
                                     <th className="px-6 py-3 font-medium">Property</th>
-                                    <th className="px-6 py-3 font-medium text-right">Actions</th>
+                                    <th className="px-6 py-3 font-medium">Rent</th>
+                                    <th className="px-6 py-3"></th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {tenants.map(lambda t: any -> JsxElement {
                                     return (
-                                        <tr key={t["id"]} className="hover:bg-slate-50/50 transition-colors group">
-                                            <td className="px-6 py-4 font-medium text-slate-900 flex items-center gap-3">
-                                                <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs">
-                                                    {str(t["full_name"])[0] if len(str(t["full_name"])) > 0 else "?"}
+                                        <tr key={t["id"]} className="hover:bg-slate-50/50 group">
+                                            <td className="px-6 py-4 font-medium text-slate-900">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-semibold shrink-0">
+                                                        {t["full_name"][0].upper() if t["full_name"] else "?"}
+                                                    </div>
+                                                    {t["full_name"]}
                                                 </div>
-                                                {t["full_name"]}
                                             </td>
                                             <td className="px-6 py-4 font-mono text-slate-500 text-xs">{t["phone_number"]}</td>
-                                            <td className="px-6 py-4">
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-xs text-slate-700 font-mono font-medium">{t["unit_number"]}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-100 border border-slate-200 text-xs text-slate-600 font-medium">
-                                                    {t["property_name"]}
-                                                </span>
-                                            </td>
+                                            <td className="px-6 py-4"><span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-xs font-mono font-medium">{t["unit_number"]}</span></td>
+                                            <td className="px-6 py-4 text-slate-600 text-xs">{t["property_name"] if t["property_name"] else "—"}</td>
+                                            <td className="px-6 py-4 text-slate-600 text-xs">${t["rent"]}/mo</td>
                                             <td className="px-6 py-4 text-right">
                                                 <button onClick={lambda -> None { delete_tenant(t["id"]); }} className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -261,11 +221,10 @@ def:pub TenantsPropertiesView() -> JsxElement {
                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Street Address</label>
                                 <input value={form_prop_address} onChange={lambda e: any -> None { form_prop_address = e.target.value; }} className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 transition-shadow" placeholder="123 Main St" />
                             </div>
-                            <p className="text-xs text-slate-400">4 default units (1A, 2A, 3B, 4B) will be created automatically.</p>
                         </div>
-                        <div className="mt-8 flex gap-3 justify-end">
+                        <div className="mt-6 flex gap-3 justify-end">
                             <button onClick={lambda -> None { show_prop_modal = False; }} className="px-4 py-2 rounded-md font-medium text-slate-600 hover:bg-slate-100 text-sm transition">Cancel</button>
-                            <button onClick={save_property} disabled={not form_prop_name} className="px-4 py-2 rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 transition disabled:opacity-50">Save Property</button>
+                            <button onClick={save_property} disabled={not form_prop_name} className="px-4 py-2 rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 transition disabled:opacity-50">Save</button>
                         </div>
                     </div>
                 </div>
@@ -283,18 +242,12 @@ def:pub TenantsPropertiesView() -> JsxElement {
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Phone Number</label>
                                 <input value={form_tenant_phone} onChange={lambda e: any -> None { form_tenant_phone = e.target.value; }} className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 font-mono transition-shadow" placeholder="+15551234567" />
-                                <p className="text-[10px] text-slate-400 mt-1">E.164 format — must match the phone number they text from.</p>
+                                <p className="text-[10px] text-slate-400 mt-1">Must match the number they text from. Use +1 format.</p>
                             </div>
                             <div className="flex gap-3">
                                 <div className="flex-1">
                                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Unit</label>
-                                    <select value={form_tenant_unit} onChange={lambda e: any -> None { form_tenant_unit = e.target.value; }} className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white transition-shadow">
-                                        <option value="">Select unit...</option>
-                                        <option value="1A">1A</option>
-                                        <option value="2A">2A</option>
-                                        <option value="3B">3B</option>
-                                        <option value="4B">4B</option>
-                                    </select>
+                                    <input value={form_tenant_unit} onChange={lambda e: any -> None { form_tenant_unit = e.target.value; }} className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 font-mono transition-shadow" placeholder="1A" />
                                 </div>
                                 <div className="flex-1">
                                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Monthly Rent ($)</label>
@@ -311,7 +264,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
                                 </select>
                             </div>
                         </div>
-                        <div className="mt-8 flex gap-3 justify-end">
+                        <div className="mt-6 flex gap-3 justify-end">
                             <button onClick={lambda -> None { show_tenant_modal = False; }} className="px-4 py-2 rounded-md font-medium text-slate-600 hover:bg-slate-100 text-sm transition">Cancel</button>
                             <button onClick={save_tenant} disabled={not form_tenant_name or not form_tenant_phone or not form_tenant_unit} className="px-4 py-2 rounded-md text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 transition disabled:opacity-50">Save Tenant</button>
                         </div>

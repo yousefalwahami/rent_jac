@@ -79,11 +79,26 @@ walker triage {
 
     can finish with Root exit {
         if not self.ctx_found {
-            report {
-                "status": "tenant_not_found",
-                "phone": self.sender_phone,
-                "message": self.message
-            };
+            # No registered tenant matched — still run AI classification
+            try {
+                classification = classify_event(self.message);
+                event_type = str(classification).split(".")[-1].lower();
+                report {
+                    "status": "classified",
+                    "event_type": event_type,
+                    "tenant": self.sender_phone,
+                    "property": "Unknown",
+                    "unit": "?",
+                    "unmatched": True,
+                    "message": self.message
+                };
+            } except Exception {
+                report {
+                    "status": "tenant_not_found",
+                    "phone": self.sender_phone,
+                    "message": self.message
+                };
+            }
         }
     }
 }
