@@ -69,11 +69,7 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
     return (
         <div className="flex w-full h-full flex-col bg-slate-50 font-sans text-slate-800 relative overflow-hidden rounded-xl border border-slate-200 shadow-2xl">
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-white/80 backdrop-blur z-30 shadow-sm transition-all duration-500">
-                <div className="flex items-center gap-4">
-                    <button onClick={on_back} className="p-2 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200 rounded-full transition-all shadow-sm">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                    </button>
-                </div>
+                <div className="flex items-center gap-4"></div>
                 <div className="flex gap-3">
                     <button onClick={lambda -> None { stage = 0; is_playing = True; }} className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-colors shadow-sm">
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>

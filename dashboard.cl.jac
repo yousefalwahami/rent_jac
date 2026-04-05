@@ -164,27 +164,33 @@ def:pub DashboardView(props: dict) -> JsxElement {
                     </div>
                 </div>
 
-                <div className="flex flex-col bg-slate-900 text-slate-300 rounded-md shadow-sm border border-slate-800 pointer-events-none">
-                    <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between bg-slate-900 z-10">
-                        <h3 className="text-sm font-medium tracking-tight text-white">Pending AI Runs</h3>
-                        <div className="text-[10px] uppercase tracking-widest font-mono text-slate-500">Queue</div>
+                <div className="flex flex-col bg-white rounded-md border border-slate-200 shadow-sm overflow-hidden pointer-events-none">
+                    <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                        <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></div>
+                            <h3 className="text-sm font-medium tracking-tight text-slate-900">Pending AI Runs</h3>
+                        </div>
+                        <div className="text-[10px] uppercase tracking-widest font-mono text-slate-400">Queue</div>
                     </div>
-                    <div className="flex-1 p-6 relative z-10 flex flex-col items-center justify-center min-h-[400px]">
+                    <div className="flex-1 p-6 relative z-10 flex flex-col items-center justify-center min-h-[400px] bg-slate-50/30">
                         {(
                             <div className="flex flex-col items-center opacity-60">
-                                <svg className="w-8 h-8 text-slate-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                <p className="text-slate-400 text-xs font-mono text-center tracking-tight">System idle.</p>
-                                <p className="text-slate-500 text-xs mt-1 text-center">Awaiting initial Twilio payload.</p>
+                                <svg className="w-8 h-8 text-slate-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                <p className="text-slate-500 text-xs font-mono text-center tracking-tight">System idle.</p>
+                                <p className="text-slate-400 text-xs mt-1 text-center">Awaiting initial Twilio payload.</p>
                             </div>
                         ) if len(incidents) == 0 else (
                             <div className="w-full flex-col flex gap-4 h-full pt-2">
-                                <div className="rounded border border-slate-700 bg-slate-800/50 p-4">
-                                    <p className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-2">Processing Thread</p>
-                                    <p className="text-sm text-white font-medium truncate">{selected_cat}</p>
-                                    <div className="w-full bg-slate-700 h-1 mt-4 rounded overflow-hidden">
-                                        <div className="bg-emerald-500 h-full w-[65%] animate-pulse"></div>
+                                <div className="rounded-md border border-slate-200 bg-white shadow-sm p-5">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <p className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Processing Thread</p>
+                                        <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase tracking-wider">Running</span>
                                     </div>
-                                    <p className="text-[10px] text-slate-500 mt-2 text-right">Drafting response...</p>
+                                    <p className="text-sm text-slate-900 font-semibold truncate">{selected_cat}</p>
+                                    <div className="w-full bg-slate-100 h-1.5 mt-4 rounded-full overflow-hidden">
+                                        <div className="bg-indigo-500 h-full w-[65%] animate-pulse rounded-full"></div>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 mt-3 text-right">Drafting response...</p>
                                 </div>
                             </div>
                         )}
