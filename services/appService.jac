@@ -12,36 +12,41 @@ glob _twilio_log: any = getLogger("twilio.http_client").setLevel(40);
 
 
 glob messages: list = [];
+# Map from Twilio SID → triage result, so API-fetched messages can be enriched
+glob _triage_by_sid: dict = {};
+
 def:pub get_messages() -> dict {
     try {
         load_dotenv();
         account_sid = getenv("TWILIO_ACCOUNT_SID");
         auth_token = getenv("TWILIO_AUTH_TOKEN");
         twilio_num = getenv("TWILIO_PHONE_NUMBER");
-        
+
         if account_sid and auth_token {
             client = Client(account_sid, auth_token);
             msgs = client.messages.list(limit=20);
-            
+
             fmt_msgs = [];
             for m in msgs {
                 if "Sent from your Twilio trial account" in str(m.body) {
                     continue;
                 }
-                fmt_msgs.append({
+                entry = {
                     "from": m.from_,
                     "to": m.to,
                     "body": m.body,
                     "time": str(m.date_created) if m.date_created else "",
-                    "sid": m.sid
-                });
+                    "sid": m.sid,
+                    "triage": _triage_by_sid.get(m.sid, None)
+                };
+                fmt_msgs.append(entry);
             }
             return {"messages": fmt_msgs, "source": "twilio_api"};
         }
     } except Exception as e {
         print("Failed to fetch from Twilio: " + str(e));
     }
-    
+
     return {"messages": messages, "source": "memory"};
 }
 
@@ -147,6 +152,7 @@ async def:pub twilio_webhook(request: Request) -> dict {
     form = await request.form();
     from_number = str(form.get("From") or "unknown");
     body = str(form.get("Body") or "");
+    msg_sid = str(form.get("MessageSid") or "");
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S");
 
     msg_entry = {
@@ -165,6 +171,9 @@ async def:pub twilio_webhook(request: Request) -> dict {
         if result.reports {
             triage_result = result.reports[0];
             msg_entry["triage"] = triage_result;
+            if msg_sid {
+                _triage_by_sid[msg_sid] = triage_result;
+            }
             print("Triage result: " + str(triage_result));
 
             # If maintenance was processed, send SMS notifications
