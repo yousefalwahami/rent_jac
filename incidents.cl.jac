@@ -378,16 +378,17 @@ def:pub IncidentsView(props: dict) -> JsxElement {
     set_urgency = props["set_urgency"];
     category_filter = props["category_filter"];
     set_category = props["set_category"];
+    set_viewing_detail = props["set_viewing_detail"];
 
-    has viewing_detail: bool = False;
+    viewing_detail = props["viewing_detail"];
 
     def open_detail(incident: IncidentRecord) -> None {
         set_selected(incident);
-        viewing_detail = True;
+        set_viewing_detail(True);
     }
 
     def close_detail() -> None {
-        viewing_detail = False;
+        set_viewing_detail(False);
     }
 
     # If viewing detail, show full-screen AI flow

@@ -17,6 +17,7 @@ def:pub ClientApp() -> JsxElement {
     has loading_live: bool = False;
     has initial_load: bool = False;
     has sidebar_collapsed: bool = False;
+    has viewing_detail: bool = False;
 
     if not initial_load {
         initial_load = True;
@@ -157,7 +158,7 @@ def:pub ClientApp() -> JsxElement {
 
     def content() -> JsxElement {
         if current_view == "Dashboard" { return dashboard_view(live_incidents, selected_incident, set_selected); }
-        if current_view == "Incidents" { return <IncidentsView incidents={live_incidents} selected={selected_incident} set_selected={set_selected} search={search} set_search={lambda value: str -> None { search = value; }} urgency_filter={urgency_filter} set_urgency={lambda value: str -> None { urgency_filter = value; }} category_filter={category_filter} set_category={lambda value: str -> None { category_filter = value; }} />; }
+        if current_view == "Incidents" { return <IncidentsView incidents={live_incidents} selected={selected_incident} set_selected={set_selected} search={search} set_search={lambda value: str -> None { search = value; }} urgency_filter={urgency_filter} set_urgency={lambda value: str -> None { urgency_filter = value; }} category_filter={category_filter} set_category={lambda value: str -> None { category_filter = value; }} viewing_detail={viewing_detail} set_viewing_detail={lambda v: bool -> None { viewing_detail = v; }} />; }
         if current_view == "SMS Inbox" { return <SmsInboxView />; }
         return <SettingsView />;
     }
@@ -263,8 +264,22 @@ def:pub ClientApp() -> JsxElement {
             <main className="flex-1 flex flex-col min-w-0 bg-white">
                 
                 <header className="h-14 flex-shrink-0 border-b border-slate-200 flex items-center justify-between px-6 bg-white">
-                    <div className="flex items-center gap-4">
-                        <h2 className="text-sm font-medium text-slate-900">{title_text}</h2>
+                    <div className="flex items-center gap-3">
+                        {viewing_detail and current_view == "Incidents" and selected_incident and (
+                            <button onClick={lambda -> None { viewing_detail = False; }} className="text-slate-500 hover:text-slate-900 focus:outline-none p-1 rounded-md hover:bg-slate-100 transition">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"></path><path d="M12 19l-7-7 7-7"></path></svg>
+                            </button>
+                        )}
+                        {viewing_detail and current_view == "Incidents" and selected_incident and (
+                            <div className="flex items-center gap-1 text-sm">
+                                <span onClick={lambda -> None { viewing_detail = False; }} className="font-medium text-slate-500 hover:text-slate-900 hover:underline cursor-pointer transition-colors">Incidents</span>
+                                <span className="text-slate-300 mx-1">/</span>
+                                <span className="font-semibold text-slate-900">{selected_incident.id}</span>
+                            </div>
+                        )}
+                        {(not viewing_detail or current_view != "Incidents" or not selected_incident) and (
+                            <h2 className="text-sm font-medium text-slate-900">{title_text}</h2>
+                        )}
                     </div>
                     
 
