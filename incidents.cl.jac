@@ -73,7 +73,7 @@ def:pub FlowNodeCard(inc_node: dict, selected_id: str, on_select: any) -> JsxEle
 def:pub WalkerDetailPanel(inc_node: dict) -> JsxElement {
     if not inc_node {
         return (
-            <div className="w-[340px] shrink-0 bg-white border-l border-slate-200 flex flex-col items-center justify-center p-8 text-center h-full">
+            <div className="w-full bg-white border-l border-slate-200 flex flex-col items-center justify-center p-8 text-center h-full">
                 <p className="text-sm text-slate-400">Select a node in the graph to view execution details.</p>
             </div>
         );
@@ -121,7 +121,7 @@ def:pub WalkerDetailPanel(inc_node: dict) -> JsxElement {
     }
 
     return (
-        <div className="w-[340px] shrink-0 h-full bg-white border-l border-slate-200 flex flex-col shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] z-20">
+        <div className="w-full h-full bg-white border-l border-slate-200 flex flex-col shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] z-20">
             <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex-none h-[110px]">
                 <div className="inline-flex px-2 py-1 rounded bg-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-widest mb-3">
                     Walker Detail
@@ -318,16 +318,53 @@ def:pub AiFlowDetailView(incident: IncidentRecord, on_back: any) -> JsxElement {
         );
     }
 
+    has drag_active: bool = False;
+    has drag_start_x: int = 0;
+    has drag_start_y: int = 0;
+    has scroll_start_x: int = 0;
+    has scroll_start_y: int = 0;
+
+    def on_mouse_down(e: any) -> None {
+        drag_active = True;
+        drag_start_x = e.clientX;
+        drag_start_y = e.clientY;
+        container = e.currentTarget;
+        scroll_start_x = container.scrollLeft;
+        scroll_start_y = container.scrollTop;
+    }
+
+    def on_mouse_move(e: any) -> None {
+        if not drag_active { return; }
+        dx = e.clientX - drag_start_x;
+        dy = e.clientY - drag_start_y;
+        container = e.currentTarget;
+        container.scrollLeft = scroll_start_x - dx;
+        container.scrollTop = scroll_start_y - dy;
+    }
+
+    def on_mouse_up(e: any) -> None {
+        drag_active = False;
+    }
+
     return (
         <div className="flex w-full h-[calc(100vh-56px)] overflow-hidden">
-            <div className="flex-1 flex flex-col h-full bg-[#F8FAFC]">
-                <div className="flex-1 overflow-auto p-12" style={{"backgroundImage": "radial-gradient(#e2e8f0 1.5px, transparent 1.5px)", "backgroundSize": "30px 30px"}}>
-                    <div className="flex items-center min-w-max h-full pb-10">
+            <div className="flex-1 flex flex-col h-full bg-[#F8FAFC] min-w-0">
+                <div
+                    className={"flex-1 overflow-auto p-12 " + (drag_active and "cursor-grabbing" or "cursor-grab")}
+                    style={{"backgroundImage": "radial-gradient(#e2e8f0 1.5px, transparent 1.5px)", "backgroundSize": "30px 30px"}}
+                    onMouseDown={on_mouse_down}
+                    onMouseMove={on_mouse_move}
+                    onMouseUp={on_mouse_up}
+                    onMouseLeave={on_mouse_up}
+                >
+                    <div className="flex items-center min-w-max h-full pb-10 select-none">
                         {graph_comp}
                     </div>
                 </div>
             </div>
-            {WalkerDetailPanel(active_node)}
+            <div className="w-[320px] shrink-0">
+                {WalkerDetailPanel(active_node)}
+            </div>
         </div>
     );
 }
