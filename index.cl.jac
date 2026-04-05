@@ -19,6 +19,7 @@ def:pub ClientApp() -> JsxElement {
     has initial_load: bool = False;
     has sidebar_collapsed: bool = False;
     has viewing_detail: bool = False;
+    has _triaged_sids: any = {};
 
     if not initial_load {
         initial_load = True;
@@ -76,72 +77,91 @@ def:pub ClientApp() -> JsxElement {
                 }
             }
 
-            if True {
-                new_incidents = [];
-                id_counter = 1000;
-                for msg in messages {
-                    t_name = str(msg["tenant_name"]) if msg["matched"] else str(msg["from"]);
-                    p_name = str(msg["property_name"]) if msg["matched"] else "Unknown Property";
-                    u_name = str(msg["unit"]) if msg["matched"] else "?";
-                    
-                    id_val = str(msg["sid"]) if msg["sid"] else str(id_counter);
-
-                    triage_data = msg["triage"] if ("triage" in msg and msg["triage"]) else None;
-                    maint_result = None;
-                    if triage_data and triage_data["event_type"] == "maintenance" and triage_data["result"] {
-                        maint_result = triage_data["result"];
-                    }
-
-                    inc_category = "Incoming SMS";
-                    inc_urgency = "Normal";
-                    inc_status = "Open";
-                    inc_summary = "Awaiting AI Triage...";
-                    inc_tenant = t_name;
-                    inc_property = p_name;
-                    inc_unit = u_name;
-                    inc_owner_note = "Tenant " + t_name + " sent a message: " + str(msg["body"]);
-                    inc_assignee = "";
-                    inc_tenant_reply = "";
-                    inc_recommended = "";
-                    inc_confidence = "0%";
-                    inc_property_code = "??";
-
-                    if maint_result {
-                        inc_category = str(maint_result["category"]).split(".")[-1] if maint_result["category"] else "Maintenance";
-                        if inc_category { inc_category = inc_category[0].toUpperCase() + inc_category.slice(1); }
-                        inc_urgency = str(maint_result["urgency"]).split(".")[-1] if maint_result["urgency"] else "Medium";
-                        if inc_urgency { inc_urgency = inc_urgency[0].toUpperCase() + inc_urgency.slice(1); }
-                        inc_status = "pending_approval";
-                        inc_summary = maint_result["diagnosis"] if maint_result["diagnosis"] else "";
-                        inc_tenant = maint_result["tenant"] if maint_result["tenant"] else t_name;
-                        inc_property = maint_result["property"] if maint_result["property"] else p_name;
-                        inc_unit = maint_result["unit"] if maint_result["unit"] else u_name;
-                        inc_owner_note = maint_result["owner_alert"] if maint_result["owner_alert"] else "";
-                        inc_assignee = maint_result["vendor"] if maint_result["vendor"] else "";
-                        inc_tenant_reply = maint_result["tenant_reply"] if maint_result["tenant_reply"] else "";
-                        inc_recommended = maint_result["recommended_action"] if maint_result["recommended_action"] else "";
-                        inc_confidence = "95%";
-                        inc_property_code = inc_property[0:2].toUpperCase() + "-" + inc_unit if inc_property and inc_property != "Unknown Property" else "??";
-                    } elif triage_data and triage_data["event_type"] {
-                        event_name = str(triage_data["event_type"]);
-                        inc_category = event_name[0].toUpperCase() + event_name.slice(1);
-                        inc_status = "Classified";
-                        inc_summary = "Classified as " + event_name;
-                        if triage_data["tenant"] { inc_tenant = str(triage_data["tenant"]); }
-                        if triage_data["property"] { inc_property = str(triage_data["property"]); }
-                        if triage_data["unit"] { inc_unit = str(triage_data["unit"]); }
-                        inc_confidence = "90%";
-                    }
-
-                    inc = create_incident_record("INC-" + id_val, str(msg["time"]), str(msg["body"]), str(msg["from"]), inc_tenant, inc_property, inc_unit, inc_category, inc_urgency, inc_status, inc_confidence, inc_summary, inc_owner_note, inc_property_code);
-                    inc.recommended_action = inc_recommended;
-                    inc.tenant_reply = inc_tenant_reply;
-                    inc.assignee = inc_assignee;
-                    new_incidents.append(inc);
-                    id_counter += 1;
+            # Auto-run triage for messages missing classification
+            needs_triage = [];
+            for msg in messages {
+                sid = str(msg["sid"]) if msg["sid"] else "";
+                if not msg["triage"] and sid and not _triaged_sids[sid] {
+                    needs_triage.append(msg);
+                    _triaged_sids[sid] = True;
                 }
-                live_incidents = new_incidents;
             }
+            if len(needs_triage) > 0 {
+                for msg in needs_triage {
+                    try {
+                        tr = await __doFuncFetch("run_triage_for_message", {"body": str(msg["body"]), "from_number": str(msg["from"]), "msg_sid": str(msg["sid"]) if msg["sid"] else ""});
+                        if tr and tr["triage"] {
+                            msg["triage"] = tr["triage"];
+                        } elif tr and tr["data"] and tr["data"]["result"] and tr["data"]["result"]["triage"] {
+                            msg["triage"] = tr["data"]["result"]["triage"];
+                        }
+                    } except Exception {}
+                }
+            }
+            new_incidents = [];
+            id_counter = 1000;
+            for msg in messages {
+                t_name = str(msg["tenant_name"]) if msg["matched"] else str(msg["from"]);
+                p_name = str(msg["property_name"]) if msg["matched"] else "Unknown Property";
+                u_name = str(msg["unit"]) if msg["matched"] else "?";
+
+                id_val = str(msg["sid"]) if msg["sid"] else str(id_counter);
+
+                triage_data = msg["triage"] if ("triage" in msg and msg["triage"]) else None;
+                maint_result = None;
+                if triage_data and triage_data["event_type"] == "maintenance" and triage_data["result"] {
+                    maint_result = triage_data["result"];
+                }
+
+                inc_category = "Incoming SMS";
+                inc_urgency = "Normal";
+                inc_status = "Open";
+                inc_summary = "Awaiting AI Triage...";
+                inc_tenant = t_name;
+                inc_property = p_name;
+                inc_unit = u_name;
+                inc_owner_note = "Tenant " + t_name + " sent a message: " + str(msg["body"]);
+                inc_assignee = "";
+                inc_tenant_reply = "";
+                inc_recommended = "";
+                inc_confidence = "0%";
+                inc_property_code = "??";
+
+                if maint_result {
+                    inc_category = str(maint_result["category"]).split(".")[-1] if maint_result["category"] else "Maintenance";
+                    if inc_category { inc_category = inc_category[0].toUpperCase() + inc_category.slice(1); }
+                    inc_urgency = str(maint_result["urgency"]).split(".")[-1] if maint_result["urgency"] else "Medium";
+                    if inc_urgency { inc_urgency = inc_urgency[0].toUpperCase() + inc_urgency.slice(1); }
+                    inc_status = "pending_approval";
+                    inc_summary = maint_result["diagnosis"] if maint_result["diagnosis"] else "";
+                    inc_tenant = maint_result["tenant"] if maint_result["tenant"] else t_name;
+                    inc_property = maint_result["property"] if maint_result["property"] else p_name;
+                    inc_unit = maint_result["unit"] if maint_result["unit"] else u_name;
+                    inc_owner_note = maint_result["owner_alert"] if maint_result["owner_alert"] else "";
+                    inc_assignee = maint_result["vendor"] if maint_result["vendor"] else "";
+                    inc_tenant_reply = maint_result["tenant_reply"] if maint_result["tenant_reply"] else "";
+                    inc_recommended = maint_result["recommended_action"] if maint_result["recommended_action"] else "";
+                    inc_confidence = "95%";
+                    inc_property_code = inc_property[0:2].toUpperCase() + "-" + inc_unit if inc_property and inc_property != "Unknown Property" else "??";
+                } elif triage_data and triage_data["event_type"] {
+                    event_name = str(triage_data["event_type"]);
+                    inc_category = event_name[0].toUpperCase() + event_name.slice(1);
+                    inc_status = "Classified";
+                    inc_summary = "Classified as " + event_name;
+                    if triage_data["tenant"] { inc_tenant = str(triage_data["tenant"]); }
+                    if triage_data["property"] { inc_property = str(triage_data["property"]); }
+                    if triage_data["unit"] { inc_unit = str(triage_data["unit"]); }
+                    inc_confidence = "90%";
+                }
+
+                inc = create_incident_record("INC-" + id_val, str(msg["time"]), str(msg["body"]), str(msg["from"]), inc_tenant, inc_property, inc_unit, inc_category, inc_urgency, inc_status, inc_confidence, inc_summary, inc_owner_note, inc_property_code);
+                inc.recommended_action = inc_recommended;
+                inc.tenant_reply = inc_tenant_reply;
+                inc.assignee = inc_assignee;
+                new_incidents.append(inc);
+                id_counter += 1;
+            }
+            live_incidents = new_incidents;
         } except Exception as ex {
             print("Failed to sync live data: " + str(ex));
         }

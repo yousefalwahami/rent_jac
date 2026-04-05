@@ -3,7 +3,7 @@ Rentora entry point.
 Imports server-side symbols and mounts the client app.
 """
 
-import from services.appService { greet, send_test_sms, twilio_webhook, get_messages, get_twilio_number, set_alert_number, send_sms, delete_message }
+import from services.appService { greet, send_test_sms, twilio_webhook, get_messages, get_twilio_number, set_alert_number, send_sms, delete_message, run_triage_for_message }
 import from services.profileService { get_profile, update_profile }
 import from services.dataService { get_properties, get_tenants, add_property, add_tenant, update_property, delete_property, update_tenant, delete_tenant }
 import from services.graphService {

@@ -237,6 +237,23 @@ async def:pub twilio_webhook(request: Request) -> dict {
     };
 }
 
+async def:pub run_triage_for_message(body: str, from_number: str, msg_sid: str = "") -> dict {
+    try {
+        result = root spawn triage(message=body, sender_phone=from_number);
+        if result.reports {
+            triage_result = result.reports[0];
+            if msg_sid {
+                _triage_by_sid[msg_sid] = triage_result;
+            }
+            return {"success": True, "triage": triage_result};
+        }
+        return {"success": False, "error": "No triage result"};
+    } except Exception as e {
+        return {"success": False, "error": str(e)};
+    }
+}
+
+
 def:pub delete_message(msg_id: str) -> dict {
     try {
         load_dotenv();
