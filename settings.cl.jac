@@ -2,12 +2,12 @@ import from "@jac/runtime" { __doFuncFetch }
 cl import from shared { panel_classes }
 
 def:pub SettingsView() -> JsxElement {
-    has email: str = "";
+    has email: str = localStorage.getItem("rentora_email") or "";
     has twilio_number: str = "";
-    has alert_number: str = "";
-    has alert_input: str = "";
-    has name: str = "";
-    has name_input: str = "";
+    has alert_number: str = localStorage.getItem("rentora_phone") or "";
+    has alert_input: str = localStorage.getItem("rentora_phone") or "";
+    has name: str = localStorage.getItem("rentora_name") or "";
+    has name_input: str = localStorage.getItem("rentora_name") or "";
     has loading: bool = True;
     has saving_phone: bool = False;
     has save_success_phone: bool = False;
@@ -18,22 +18,11 @@ def:pub SettingsView() -> JsxElement {
         loading = True;
         t = await __doFuncFetch("get_twilio_number", {});
         twilio_number = t["number"] if (t and t["number"]) else "Not configured";
-        try {
-            p = root spawn get_profile();
-            reports = p.reports if p else [];
-            data = reports[0] if reports else {};
-            alert_number = data["phone_number"] if (data and data["phone_number"]) else "";
-            alert_input = alert_number;
-            name = data["name"] if (data and data["name"]) else "";
-            name_input = name;
-            email = data["email"] if (data and data["email"]) else "";
-        } except Exception {
-            alert_number = "";
-            alert_input = "";
-            name = "";
-            name_input = "";
-            email = "";
-        }
+        email = localStorage.getItem("rentora_email") or "";
+        alert_number = localStorage.getItem("rentora_phone") or "";
+        alert_input = alert_number;
+        name = localStorage.getItem("rentora_name") or "";
+        name_input = name;
         loading = False;
     }
 
@@ -45,7 +34,7 @@ def:pub SettingsView() -> JsxElement {
         e.preventDefault();
         saving_profile = True;
         save_success_profile = False;
-        root spawn update_profile(name=name_input, phone_number=alert_number);
+        localStorage.setItem("rentora_name", name_input);
         name = name_input;
         saving_profile = False;
         save_success_profile = True;
@@ -55,7 +44,7 @@ def:pub SettingsView() -> JsxElement {
         e.preventDefault();
         saving_phone = True;
         save_success_phone = False;
-        root spawn update_profile(phone_number=alert_input, name=name);
+        localStorage.setItem("rentora_phone", alert_input);
         await __doFuncFetch("set_alert_number", {"phone_number": alert_input});
         alert_number = alert_input;
         saving_phone = False;

@@ -38,8 +38,9 @@ def:pub LoginView(props: dict) -> JsxElement {
                 result = await jacSignup(email, password);
                 loading = False;
                 if result["success"] {
+                    localStorage.setItem("rentora_email", email);
                     if alert_number {
-                        root spawn update_profile(phone_number=alert_number);
+                        localStorage.setItem("rentora_phone", alert_number);
                     }
                     if on_auth_success {
                         on_auth_success();

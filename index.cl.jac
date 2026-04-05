@@ -122,20 +122,13 @@ def:pub ClientApp() -> JsxElement {
         loading_live = False;
     }
 
-    has user_name: str = "";
-    has user_email: str = "";
+    has user_name: str = localStorage.getItem("rentora_name") or "";
+    has user_email: str = localStorage.getItem("rentora_email") or "";
 
     async can with entry {
         if is_authenticated {
-            try {
-                p = root spawn get_profile();
-                reports = p.reports if p else [];
-                data = reports[0] if reports else {};
-                user_name = data["name"] if (data and data["name"]) else "";
-                user_email = data["email"] if (data and data["email"]) else "";
-            } except Exception {
-                print("Error fetching profile");
-            }
+            user_name = localStorage.getItem("rentora_name") or "";
+            user_email = localStorage.getItem("rentora_email") or "";
         }
     }
 
