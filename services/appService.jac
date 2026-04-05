@@ -242,7 +242,8 @@ def:pub run_triage_for_message(body: str, from_number: str, msg_sid: str = "") -
         result = root spawn triage(message=body, sender_phone=from_number);
         if result.reports {
             triage_result = result.reports[0];
-            if msg_sid {
+            # Only cache matched results — unmatched stay uncached so they retry after tenant registration
+            if msg_sid and not triage_result.get("unmatched", False) {
                 _triage_by_sid[msg_sid] = triage_result;
             }
             return {"success": True, "triage": triage_result};

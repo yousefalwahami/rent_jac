@@ -19,7 +19,6 @@ def:pub ClientApp() -> JsxElement {
     has initial_load: bool = False;
     has sidebar_collapsed: bool = False;
     has viewing_detail: bool = False;
-    has _triaged_sids: any = {};
 
     if not initial_load {
         initial_load = True;
@@ -86,24 +85,23 @@ def:pub ClientApp() -> JsxElement {
                 }
             }
 
-            # Auto-run triage for messages missing classification
+            # Auto-run triage for unclassified or previously unmatched messages
             needs_triage = [];
             for msg in messages {
                 sid = str(msg["sid"]) if msg["sid"] else "";
-                if not msg["triage"] and sid and not _triaged_sids[sid] {
+                already_matched = msg["triage"] and not msg["triage"]["unmatched"];
+                if sid and not already_matched {
                     needs_triage.append(msg);
-                    _triaged_sids[sid] = True;
                 }
             }
             if len(needs_triage) > 0 {
                 for msg in needs_triage {
                     try {
                         tr = await __doFuncFetch("run_triage_for_message", {"body": str(msg["body"]), "from_number": str(msg["from"]), "msg_sid": str(msg["sid"]) if msg["sid"] else ""});
-                        if tr and tr["triage"] {
-                            msg["triage"] = tr["triage"];
-                        } elif tr and tr["data"] and tr["data"]["result"] and tr["data"]["result"]["triage"] {
-                            msg["triage"] = tr["data"]["result"]["triage"];
-                        }
+                        triage_val = None;
+                        if tr and tr["triage"] { triage_val = tr["triage"]; }
+                        elif tr and tr["data"] and tr["data"]["result"] and tr["data"]["result"]["triage"] { triage_val = tr["data"]["result"]["triage"]; }
+                        if triage_val { msg["triage"] = triage_val; }
                     } except Exception {}
                 }
             }
