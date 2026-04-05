@@ -1,5 +1,5 @@
 import from os { getenv }
-import from fastapi { Request, HTTPException }
+import from fastapi { Request, Response, HTTPException }
 import from pydantic { BaseModel }
 import from dotenv { load_dotenv }
 import from twilio.rest { Client }
@@ -270,12 +270,10 @@ async def:pub twilio_webhook(request: Request) -> dict {
         }
     }
 
-    return {
-        "success": True,
-        "from": from_number,
-        "body": body,
-        "triage": triage_result,
-    };
+    return Response(
+        content="<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response></Response>",
+        media_type="application/xml"
+    );
 }
 
 walker run_triage_for_message {
