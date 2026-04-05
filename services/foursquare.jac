@@ -1,85 +1,63 @@
-"""Foursquare Places API client for live vendor discovery."""
+"""Vendor discovery — mock implementation with simulated latency."""
 
-import from os { getenv }
-import from dotenv { load_dotenv }
-import from requests { get as http_get }
+import from time { sleep }
+import from random { uniform, randint }
 
-# Map maintenance categories → Foursquare search queries
-glob _CATEGORY_QUERY: dict = {
-    "hvac":       "HVAC air conditioning heating contractor",
-    "plumbing":   "plumber plumbing service",
-    "electrical": "electrician electrical contractor",
-    "appliance":  "appliance repair service",
-    "general":    "handyman general contractor"
+
+# Fake vendor pool keyed by category
+glob _FAKE_VENDORS: dict = {
+    "plumbing": [
+        {"name": "FlowFix Plumbing Co.", "phone": "+1 416-555-0182", "rating": 4.7, "avg_cost": 175.0},
+        {"name": "Aqua Pro Services",    "phone": "+1 416-555-0247", "rating": 4.4, "avg_cost": 140.0},
+        {"name": "PipeMaster Toronto",   "phone": "+1 647-555-0391", "rating": 4.2, "avg_cost": 195.0}
+    ],
+    "electrical": [
+        {"name": "Volta Electric Inc.",     "phone": "+1 416-555-0138", "rating": 4.8, "avg_cost": 210.0},
+        {"name": "PowerGrid Solutions",     "phone": "+1 647-555-0274", "rating": 4.5, "avg_cost": 185.0},
+        {"name": "Spark & Wire Electrical", "phone": "+1 416-555-0356", "rating": 4.3, "avg_cost": 160.0}
+    ],
+    "hvac": [
+        {"name": "AirCare HVAC",        "phone": "+1 416-555-0421", "rating": 4.6, "avg_cost": 230.0},
+        {"name": "Climate Control Pro",  "phone": "+1 647-555-0183", "rating": 4.4, "avg_cost": 200.0},
+        {"name": "ThermoFix Services",   "phone": "+1 416-555-0509", "rating": 4.1, "avg_cost": 165.0}
+    ],
+    "appliance": [
+        {"name": "AppliancePro Repairs",  "phone": "+1 416-555-0612", "rating": 4.5, "avg_cost": 120.0},
+        {"name": "FixIt Fast Appliances", "phone": "+1 647-555-0745", "rating": 4.3, "avg_cost": 100.0},
+        {"name": "HomeGear Tech",         "phone": "+1 416-555-0831", "rating": 4.0, "avg_cost": 110.0}
+    ],
+    "general": [
+        {"name": "AllHands Maintenance",  "phone": "+1 416-555-0914", "rating": 4.4, "avg_cost": 130.0},
+        {"name": "QuickFix Handyman",     "phone": "+1 647-555-0062", "rating": 4.2, "avg_cost": 110.0},
+        {"name": "ProCare Property Svcs", "phone": "+1 416-555-0173", "rating": 4.6, "avg_cost": 150.0}
+    ]
 };
 
-# Foursquare price tier (1–4) → estimated job cost in USD
-glob _PRICE_COST: dict = {1: 90.0, 2: 150.0, 3: 250.0, 4: 380.0};
-
-# Fallback city used when the property has no city/state stored
 glob _DEFAULT_NEAR: str = "Toronto, ON";
 
 
 def fetch_vendors_near(category: str, near: str) -> list {
-    #*Query Foursquare for contractors near a location.
-    Returns a list of dicts: {name, category, phone, rating, avg_cost}.
-    Returns [] on any error or if key is missing.
-    *#
-    load_dotenv();
-    api_key = getenv("FOURSQUARE_SERVICE_KEY");
-    if not api_key {
-        print("[foursquare] FOURSQUARE_SERVICE_KEY not set — skipping live vendor lookup");
-        return [];
-    }
-
-    query    = _CATEGORY_QUERY.get(category.lower(), category + " contractor");
+    # Simulate live API search latency (3–8 seconds)
+    delay = uniform(3.0, 8.0);
     location = near if (near and len(near) > 4) else _DEFAULT_NEAR;
+    print("[foursquare] simulating vendor search (" + str(round(delay, 1)) + "s) for '" + category + "' near '" + location + "'");
+    sleep(delay);
 
-    print("[foursquare] querying '" + query + "' near '" + location + "'");
+    key = category.lower();
+    pool = _FAKE_VENDORS.get(key, _FAKE_VENDORS["general"]);
 
-    try {
-        resp = http_get(
-            "https://api.foursquare.com/v3/places/search",
-            headers={"Authorization": api_key, "Accept": "application/json"},
-            params={
-                "query":  query,
-                "near":   location,
-                "limit":  5,
-                "fields": "name,categories,tel,rating,price"
-            },
-            timeout=8
-        );
-
-        if resp.status_code != 200 {
-            print("[foursquare] HTTP " + str(resp.status_code) + ": " + resp.text);
-            return [];
-        }
-
-        results = resp.json().get("results", []);
-        vendors = [];
-        for r in results {
-            name = r.get("name", "");
-            if not name { continue; }
-            phone    = r.get("tel", "") or "";
-            # Foursquare rating is 0–10
-            raw_rating = r.get("rating", 0.0) or 0.0;
-            rating   = round(float(raw_rating) / 2.0, 1);   # convert to 0–5 scale
-            price_t  = r.get("price", 2) or 2;
-            avg_cost = float(_PRICE_COST.get(int(price_t), 150.0));
-            vendors.append({
-                "name":     name,
-                "category": category,
-                "phone":    phone,
-                "rating":   rating,
-                "avg_cost": avg_cost
-            });
-        }
-
-        print("[foursquare] found " + str(len(vendors)) + " vendor(s) for category '" + category + "'");
-        return vendors;
-
-    } except Exception as e {
-        print("[foursquare] error: " + str(e));
-        return [];
+    count = randint(2, len(pool));
+    vendors = [];
+    for v in pool[:count] {
+        vendors.append({
+            "name":     v["name"],
+            "category": category,
+            "phone":    v["phone"],
+            "rating":   v["rating"],
+            "avg_cost": v["avg_cost"]
+        });
     }
+
+    print("[foursquare] returning " + str(len(vendors)) + " mock vendor(s) for category '" + category + "'");
+    return vendors;
 }
