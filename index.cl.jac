@@ -19,6 +19,7 @@ def:pub ClientApp() -> JsxElement {
     has initial_load: bool = False;
     has sidebar_collapsed: bool = False;
     has viewing_detail: bool = False;
+    has _triaged_sids: any = {};
 
     if not initial_load {
         initial_load = True;
@@ -85,13 +86,13 @@ def:pub ClientApp() -> JsxElement {
                 }
             }
 
-            # Auto-run triage for unclassified or previously unmatched messages
+            # Auto-run triage once per SID per session (prevents rate limit spam)
             needs_triage = [];
             for msg in messages {
                 sid = str(msg["sid"]) if msg["sid"] else "";
-                already_matched = msg["triage"] and not msg["triage"]["unmatched"];
-                if sid and not already_matched {
+                if sid and not msg["triage"] and not _triaged_sids[sid] {
                     needs_triage.append(msg);
+                    _triaged_sids[sid] = True;
                 }
             }
             if len(needs_triage) > 0 {
