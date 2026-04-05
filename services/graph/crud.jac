@@ -214,33 +214,33 @@ walker db_health {
 
 
 walker list_tenants {
-    can start with Root entry {
-        visit [-->][?:Property];
-    }
-
-    can at_property with Property entry {
-        prop_id = jid(here);
-        prop_name = here.name;
-        units = [->: HasUnit :->];
-        for u in units {
-            leases = [u ->: HasLease :->];
-            if leases {
-                tenants_in_unit = [leases[0] ->: HasTenant :->];
-                if tenants_in_unit {
-                    t = tenants_in_unit[0];
-                    report {
-                        "id": jid(t),
-                        "full_name": t.name,
-                        "phone_number": t.phone,
-                        "unit_number": u.number,
-                        "property_id": prop_id,
-                        "property_name": prop_name,
-                        "rent": leases[0].rent_amount,
-                        "lease_end": leases[0].end_date
-                    };
+    can list_all with Root entry {
+        properties = [-->][?:Property];
+        result = [];
+        for p in properties {
+            prop_id = jid(p);
+            prop_name = p.name;
+            units = [p ->: HasUnit :->];
+            for u in units {
+                leases = [u ->: HasLease :->];
+                for lease in leases {
+                    tenants_in_unit = [lease ->: HasTenant :->];
+                    for t in tenants_in_unit {
+                        result.append({
+                            "id": jid(t),
+                            "full_name": t.name,
+                            "phone_number": t.phone,
+                            "unit_number": u.number,
+                            "property_id": prop_id,
+                            "property_name": prop_name,
+                            "rent": lease.rent_amount,
+                            "lease_end": lease.end_date
+                        });
+                    }
                 }
             }
         }
+        report result;
     }
 }
 
@@ -324,8 +324,8 @@ walker match_tenant {
         units = [->: HasUnit :->];
         for u in units {
             leases = [u ->: HasLease :->];
-            if leases {
-                tenants_in_unit = [leases[0] ->: HasTenant :->];
+            for lease in leases {
+                tenants_in_unit = [lease ->: HasTenant :->];
                 for t in tenants_in_unit {
                     if t.phone == self.phone {
                         report {
