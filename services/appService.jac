@@ -6,6 +6,7 @@ import from twilio.rest { Client }
 import from datetime { datetime }
 import from services.graphService { triage }
 import from logging { getLogger }
+import from services.dataService { match_phone }
 
 glob _env: any = load_dotenv();
 glob _twilio_log: any = getLogger("twilio.http_client").setLevel(40);
@@ -28,12 +29,17 @@ def:pub get_messages() -> dict {
                 if "Sent from your Twilio trial account" in str(m.body) {
                     continue;
                 }
+                match_result = match_phone(str(m.from_));
                 fmt_msgs.append({
                     "from": m.from_,
                     "to": m.to,
                     "body": m.body,
                     "time": str(m.date_created) if m.date_created else "",
-                    "sid": m.sid
+                    "sid": str(m.sid),
+                    "matched": match_result.get("matched", False),
+                    "tenant_name": match_result.get("tenant_name", ""),
+                    "property_name": match_result.get("property_name", ""),
+                    "unit": match_result.get("unit", "")
                 });
             }
             return {"messages": fmt_msgs, "source": "twilio_api"};
@@ -213,4 +219,27 @@ async def:pub twilio_webhook(request: Request) -> dict {
         "body": body,
         "triage": triage_result,
     };
+}
+
+def:pub delete_message(msg_id: str) -> dict {
+    try {
+        load_dotenv();
+        sid = str(msg_id).replace("INC-", "");
+        account_sid = getenv("TWILIO_ACCOUNT_SID");
+        auth_token = getenv("TWILIO_AUTH_TOKEN");
+        if sid.startswith("SM") and account_sid and auth_token {
+            client = Client(account_sid, auth_token);
+            client.messages(sid).delete();
+            print("Deleted Twilio message " + sid);
+            return {"success": True};
+        } else {
+            for i in range(len(messages)) {
+                messages.pop(i);
+                return {"success": True};
+            }
+        }
+    } except Exception as e {
+        return {"success": False, "error": str(e)};
+    }
+    return {"success": False, "error": "Not found"};
 }
