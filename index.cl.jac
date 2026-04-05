@@ -1,4 +1,4 @@
-import from "@jac/runtime" { __doFuncFetch, jacIsLoggedIn, jacLogout }
+import from "@jac/runtime" { __doFuncFetch, __doWalkerFetch, jacIsLoggedIn, jacLogout }
 cl import from .dashboard { DashboardView }
 cl import from .tenants_properties { TenantsPropertiesView }
 cl import from .incidents { IncidentsView }
@@ -88,10 +88,9 @@ def:pub ClientApp() -> JsxElement {
             if len(needs_triage) > 0 {
                 for msg in needs_triage {
                     try {
-                        tr = await __doFuncFetch("run_triage_for_message", {"body": str(msg["body"]), "from_number": str(msg["from"]), "msg_sid": str(msg["sid"]) if msg["sid"] else ""});
+                        tr = await __doWalkerFetch("run_triage_for_message", "", {"body": str(msg["body"]), "from_number": str(msg["from"]), "msg_sid": str(msg["sid"]) if msg["sid"] else ""});
                         triage_val = None;
-                        if tr and tr["triage"] { triage_val = tr["triage"]; }
-                        elif tr and tr["data"] and tr["data"]["result"] and tr["data"]["result"]["triage"] { triage_val = tr["data"]["result"]["triage"]; }
+                        if tr and tr["reports"] and tr["reports"][0] { triage_val = tr["reports"][0]; }
                         if triage_val { msg["triage"] = triage_val; }
                     } except Exception {}
                 }
@@ -156,6 +155,11 @@ def:pub ClientApp() -> JsxElement {
                 inc.recommended_action = inc_recommended;
                 inc.tenant_reply = inc_tenant_reply;
                 inc.assignee = inc_assignee;
+                if maint_result and "timings" in maint_result {
+                    inc.timings = maint_result["timings"];
+                } elif triage_data and "timings" in triage_data {
+                    inc.timings = triage_data["timings"];
+                }
                 new_incidents.append(inc);
                 id_counter += 1;
             }
