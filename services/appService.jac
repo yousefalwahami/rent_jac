@@ -237,7 +237,7 @@ async def:pub twilio_webhook(request: Request) -> dict {
     };
 }
 
-async def:pub run_triage_for_message(body: str, from_number: str, msg_sid: str = "") -> dict {
+def:pub run_triage_for_message(body: str, from_number: str, msg_sid: str = "") -> dict {
     try {
         result = root spawn triage(message=body, sender_phone=from_number);
         if result.reports {

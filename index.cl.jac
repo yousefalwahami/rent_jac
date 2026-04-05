@@ -271,7 +271,7 @@ def:pub ClientApp() -> JsxElement {
                     <div className={"flex items-center justify-between gap-2 py-2 " + (not sidebar_collapsed and "px-2" or "")}>
                         <div className="flex items-center gap-2 min-w-0" title={user_name if user_name else user_email if user_email else "Account"}>
                             <div className="w-7 h-7 rounded-full bg-slate-900 flex items-center justify-center text-white text-xs font-semibold shrink-0 border border-slate-300">
-                                {(user_name[0].upper() if user_name else user_email[0].upper() if user_email else "?")}
+                                {(user_name[0].toUpperCase() if user_name else user_email[0].toUpperCase() if user_email else "?")}
                             </div>
                             {not sidebar_collapsed and (
                                 <div className="min-w-0">

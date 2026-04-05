@@ -29,7 +29,7 @@ def:pub SmsInboxView(props: dict) -> JsxElement {
                 <div className="flex items-center justify-between gap-4 mb-3">
                     <div className="flex items-center gap-3">
                         <div className={"flex h-9 w-9 items-center justify-center rounded-xl text-base font-semibold " + (is_matched and "bg-indigo-100 text-indigo-700" or "bg-slate-100 text-slate-600")}>
-                            {sender_name[0:2].upper() if len(sender_name) >= 2 else "?"}
+                            {sender_name[0:2].toUpperCase() if len(sender_name) >= 2 else "?"}
                         </div>
                         <div>
                             <p className="text-sm font-semibold text-slate-900">{sender_name}</p>
