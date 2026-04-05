@@ -178,6 +178,16 @@ def:pub ClientApp() -> JsxElement {
             if triage_val { msg["triage"] = triage_val; }
             if triage_val and sid { _triage_cache[sid] = triage_val; save_triage_cache(); }
             live_incidents = build_incidents_list(msgs);
+            # Auto-approve 5 seconds after vendor is matched
+            if triage_val and sid and triage_val["result"] and triage_val["result"]["vendor"] {
+                setTimeout(lambda -> None {
+                    if _triage_cache[sid] and _triage_cache[sid]["result"] {
+                        _triage_cache[sid]["result"]["status"] = "Approved";
+                        save_triage_cache();
+                        live_incidents = build_incidents_list(msgs);
+                    }
+                }, 5000);
+            }
         } except Exception {}
     }
 
@@ -227,16 +237,30 @@ def:pub ClientApp() -> JsxElement {
                 }
             }
 
-            # Sync triage cache with server — server is authoritative for status changes (YES/NO)
+            # Sync triage cache with server — server terminals (Approved/Rejected from SMS) take priority;
+            # client terminals (auto-approve timer) are preserved if server hasn't set one yet
+            _terminal = ["Approved", "Rejected", "Resolved"];
             cache_dirty = False;
             for msg in messages {
                 sid = str(msg["sid"]) if msg["sid"] else "";
                 if sid and msg["triage"] {
-                    # Server returned triage — update cache so status changes (Approved/Rejected) persist
-                    _triage_cache[sid] = msg["triage"];
-                    cache_dirty = True;
+                    server_status = None;
+                    if msg["triage"]["result"] and msg["triage"]["result"]["status"] {
+                        server_status = str(msg["triage"]["result"]["status"]);
+                    }
+                    cached_status = None;
+                    if _triage_cache[sid] and _triage_cache[sid]["result"] and _triage_cache[sid]["result"]["status"] {
+                        cached_status = str(_triage_cache[sid]["result"]["status"]);
+                    }
+                    if server_status in _terminal or cached_status not in _terminal {
+                        # Server has definitive state OR cache has no terminal state — use server
+                        _triage_cache[sid] = msg["triage"];
+                        cache_dirty = True;
+                    } else {
+                        # Cache has terminal state (auto-approved), server doesn't — keep cache, restore to msg
+                        msg["triage"] = _triage_cache[sid];
+                    }
                 } elif sid and not msg["triage"] and _triage_cache[sid] {
-                    # Server has no triage — restore from cache
                     msg["triage"] = _triage_cache[sid];
                 }
             }

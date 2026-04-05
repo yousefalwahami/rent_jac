@@ -1,6 +1,6 @@
 """Vendor discovery — mock implementation with instant return."""
 
-import from random { randint }
+import from random { randint, sample }
 
 
 # Fake vendor pool keyed by category
@@ -40,7 +40,7 @@ def fetch_vendors_near(category: str, near: str) -> list {
     pool = _FAKE_VENDORS.get(key, _FAKE_VENDORS["general"]);
     count = randint(2, len(pool));
     vendors = [];
-    for v in pool[:count] {
+    for v in sample(pool, count) {
         vendors.append({
             "name":     v["name"],
             "category": category,
