@@ -20,11 +20,25 @@ def:pub TenantsPropertiesView() -> JsxElement {
 
     has form_prop_name: str = "";
     has form_prop_address: str = "";
+    has form_prop_notes: str = "";
+    has form_prop_tags: str = "";
+    has edit_prop_id: str = "";
+    
     has form_tenant_name: str = "";
     has form_tenant_phone: str = "";
+    has form_tenant_email: str = "";
     has form_tenant_unit: str = "";
     has form_tenant_prop_id: str = "";
     has form_tenant_rent: str = "1200";
+    has form_tenant_notes: str = "";
+    has form_tenant_tags: str = "";
+    has edit_tenant_id: str = "";
+    has toast_msg: str = "";
+
+    def show_toast(msg: str) -> None {
+        toast_msg = msg;
+        setTimeout(lambda -> None { toast_msg = ""; }, 3000);
+    }
 
     def reload() -> None {
         properties = ls_load("rentora_properties");
@@ -33,16 +47,36 @@ def:pub TenantsPropertiesView() -> JsxElement {
 
     async def save_property() -> None {
         if not form_prop_name { return; }
-        p = {"id": "P-" + str(Date.now()), "property_name": form_prop_name, "street_address": form_prop_address};
         all_p = ls_load("rentora_properties");
-        all_p.append(p);
+        if edit_prop_id {
+            for i in range(len(all_p)) {
+                if all_p[i]["id"] == edit_prop_id {
+                    all_p[i]["property_name"] = form_prop_name;
+                    all_p[i]["street_address"] = form_prop_address;
+                    all_p[i]["notes"] = form_prop_notes;
+                    all_p[i]["tags"] = [t.strip() for t in form_prop_tags.split(",") if t.strip()];
+                }
+            }
+        } else {
+            p = {
+                "id": "P-" + str(Date.now()), 
+                "property_name": form_prop_name, 
+                "street_address": form_prop_address,
+                "notes": form_prop_notes,
+                "tags": [t.strip() for t in form_prop_tags.split(",") if t.strip()]
+            };
+            all_p.append(p);
+        }
         ls_save("rentora_properties", all_p);
+        show_toast(edit_prop_id and "Property updated" or "Property added");
         show_prop_modal = False;
         form_prop_name = "";
         form_prop_address = "";
+        form_prop_notes = "";
+        form_prop_tags = "";
+        edit_prop_id = "";
         reload();
-        # Sync to graph for triage pipeline
-        try { root spawn add_property_node(name=p["property_name"], address=p["street_address"]); } except Exception {}
+        try { root spawn add_property_node(name=form_prop_name, address=form_prop_address); } except Exception {}
     }
 
     async def delete_property(p_id: str) -> None {
@@ -59,33 +93,57 @@ def:pub TenantsPropertiesView() -> JsxElement {
         for p in ls_load("rentora_properties") {
             if p["id"] == form_tenant_prop_id { prop_name = p["property_name"]; break; }
         }
-        t = {
-            "id": "T-" + str(Date.now()),
-            "full_name": form_tenant_name,
-            "phone_number": form_tenant_phone,
-            "unit_number": form_tenant_unit,
-            "property_id": form_tenant_prop_id,
-            "property_name": prop_name,
-            "rent": form_tenant_rent
-        };
         all_t = ls_load("rentora_tenants");
-        all_t.append(t);
+        
+        if edit_tenant_id {
+            for i in range(len(all_t)) {
+                if all_t[i]["id"] == edit_tenant_id {
+                    all_t[i]["full_name"] = form_tenant_name;
+                    all_t[i]["phone_number"] = form_tenant_phone;
+                    all_t[i]["email"] = form_tenant_email;
+                    all_t[i]["unit_number"] = form_tenant_unit;
+                    all_t[i]["property_id"] = form_tenant_prop_id;
+                    all_t[i]["property_name"] = prop_name;
+                    all_t[i]["rent"] = form_tenant_rent;
+                    all_t[i]["notes"] = form_tenant_notes;
+                    all_t[i]["tags"] = [tg.strip() for tg in form_tenant_tags.split(",") if tg.strip()];
+                }
+            }
+        } else {
+            t = {
+                "id": "T-" + str(Date.now()),
+                "full_name": form_tenant_name,
+                "phone_number": form_tenant_phone,
+                "email": form_tenant_email,
+                "unit_number": form_tenant_unit,
+                "property_id": form_tenant_prop_id,
+                "property_name": prop_name,
+                "rent": form_tenant_rent,
+                "notes": form_tenant_notes,
+                "tags": [tg.strip() for tg in form_tenant_tags.split(",") if tg.strip()]
+            };
+            all_t.append(t);
+        }
         ls_save("rentora_tenants", all_t);
+        show_toast(edit_tenant_id and "Tenant updated" or "Tenant added");
         show_tenant_modal = False;
         form_tenant_name = "";
         form_tenant_phone = "";
+        form_tenant_email = "";
         form_tenant_unit = "";
         form_tenant_prop_id = "";
         form_tenant_rent = "1200";
+        form_tenant_notes = "";
+        form_tenant_tags = "";
+        edit_tenant_id = "";
         reload();
-        # Sync to graph for triage phone matching
         try {
             rent_f = 0.0;
-            try { rent_f = float(t["rent"]); } except Exception {}
+            try { rent_f = float(form_tenant_rent); } except Exception {}
             root spawn register_tenant(
-                tenant_name=t["full_name"],
-                tenant_phone=t["phone_number"],
-                unit_number=t["unit_number"],
+                tenant_name=form_tenant_name,
+                tenant_phone=form_tenant_phone,
+                unit_number=form_tenant_unit,
                 rent_amount=rent_f,
                 lease_start="2025-01-01",
                 lease_end="2026-12-31",
@@ -102,18 +160,23 @@ def:pub TenantsPropertiesView() -> JsxElement {
     }
 
     return (
-        <div className="p-8 max-w-5xl mx-auto h-full overflow-y-auto">
+                <div className="p-8 max-w-5xl mx-auto h-full overflow-y-auto w-full relative">
+            {toast_msg and (
+                <div className="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded shadow-lg text-sm z-50 animate-pop">
+                    {toast_msg}
+                </div>
+            )}
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">Tenants & Properties</h1>
                     <p className="text-sm text-slate-500 mt-1">Saved locally. Tenants are synced to the AI pipeline for automatic SMS matching.</p>
                 </div>
                 <div className="flex gap-3">
-                    <button onClick={lambda -> None { form_prop_name = ""; form_prop_address = ""; show_prop_modal = True; }} className="bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-slate-50 transition">
+                    <button onClick={lambda -> None { edit_prop_id = ""; form_prop_name = ""; form_prop_address = ""; form_prop_tags = ""; form_prop_notes = ""; show_prop_modal = True; }} className="bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-slate-50 transition">
                         Add Property
                     </button>
-                    <button onClick={lambda -> None { form_tenant_name = ""; form_tenant_phone = ""; form_tenant_unit = ""; form_tenant_prop_id = (properties[0]["id"] if len(properties) > 0 else ""); show_tenant_modal = True; }} className="bg-slate-900 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-slate-800 transition">
-                        Add Tenant
+                    <button onClick={lambda -> None { edit_tenant_id = ""; form_tenant_name = ""; form_tenant_phone = ""; form_tenant_email = ""; form_tenant_unit = ""; form_tenant_prop_id = (properties[0]["id"] if len(properties) > 0 else ""); form_tenant_tags = ""; form_tenant_notes = ""; show_tenant_modal = True; }} className="bg-slate-900 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-slate-800 transition">
+                        {'Edit Tenant' if edit_tenant_id else 'Add Tenant'}
                     </button>
                 </div>
             </div>
@@ -133,7 +196,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
                         <div className="col-span-full bg-slate-50 border border-dashed border-slate-300 rounded-xl p-12 flex flex-col items-center justify-center text-center">
                             <h3 className="text-slate-900 font-medium mb-1">No properties yet</h3>
                             <p className="text-slate-500 text-sm mb-4">Add your first property to start managing tenants.</p>
-                            <button onClick={lambda -> None { form_prop_name = ""; form_prop_address = ""; show_prop_modal = True; }} className="text-sm font-medium text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm">Add Property</button>
+                            <button onClick={lambda -> None { edit_prop_id = ""; form_prop_name = ""; form_prop_address = ""; form_prop_tags = ""; form_prop_notes = ""; show_prop_modal = True; }} className="text-sm font-medium text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm">Add Property</button>
                         </div>
                     )}
                     {properties.map(lambda p: any -> JsxElement {
@@ -163,7 +226,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
                         <div className="p-12 text-center flex flex-col items-center bg-slate-50 m-2 rounded-lg border border-dashed border-slate-200">
                             <h3 className="text-slate-900 font-medium mb-1">No tenants yet</h3>
                             <p className="text-slate-500 text-sm mb-4">Add a tenant to enable automatic SMS matching.</p>
-                            <button onClick={lambda -> None { form_tenant_name = ""; form_tenant_phone = ""; form_tenant_unit = ""; form_tenant_prop_id = (properties[0]["id"] if len(properties) > 0 else ""); show_tenant_modal = True; }} className="text-sm font-medium text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm">Add Tenant</button>
+                            <button onClick={lambda -> None { edit_tenant_id = ""; form_tenant_name = ""; form_tenant_phone = ""; form_tenant_email = ""; form_tenant_unit = ""; form_tenant_prop_id = (properties[0]["id"] if len(properties) > 0 else ""); form_tenant_tags = ""; form_tenant_notes = ""; show_tenant_modal = True; }} className="text-sm font-medium text-slate-900 bg-white border border-slate-200 px-4 py-2 rounded-md shadow-sm">{'Edit Tenant' if edit_tenant_id else 'Add Tenant'}</button>
                         </div>
                     )}
                     {len(tenants) > 0 and (
@@ -211,7 +274,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
             {show_prop_modal and (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className={"w-full max-w-md shadow-xl " + panel_classes() + " p-6"}>
-                        <h2 className="text-lg font-semibold text-slate-900 mb-5">Add New Property</h2>
+                        <h2 className="text-lg font-semibold text-slate-900 mb-5">{'Edit Property' if edit_prop_id else 'Add New Property'}</h2>
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Property Name</label>
@@ -233,7 +296,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
             {show_tenant_modal and (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className={"w-full max-w-md shadow-xl " + panel_classes() + " p-6"}>
-                        <h2 className="text-lg font-semibold text-slate-900 mb-5">Add Tenant</h2>
+                        <h2 className="text-lg font-semibold text-slate-900 mb-5">{'Edit Tenant' if edit_tenant_id else 'Add Tenant'}</h2>
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Full Name</label>
