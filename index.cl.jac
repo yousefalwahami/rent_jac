@@ -67,7 +67,7 @@ def:pub ClientApp() -> JsxElement {
                 if inc_category { inc_category = inc_category[0].toUpperCase() + inc_category.slice(1); }
                 inc_urgency = str(maint_result["urgency"]).split(".")[-1] if maint_result["urgency"] else "Medium";
                 if inc_urgency { inc_urgency = inc_urgency[0].toUpperCase() + inc_urgency.slice(1); }
-                inc_status = "pending_approval";
+                inc_status = str(maint_result["status"]) if maint_result["status"] else "pending_approval";
                 inc_summary = maint_result["diagnosis"] if maint_result["diagnosis"] else "";
                 inc_tenant = maint_result["tenant"] if maint_result["tenant"] else t_name;
                 inc_property = maint_result["property"] if maint_result["property"] else p_name;
@@ -161,7 +161,7 @@ def:pub ClientApp() -> JsxElement {
                         "result": raw,
                         "timings": raw["timings"] if "timings" in raw else {}
                     };
-                    await __doFuncFetch("send_maintenance_alert", {"maint_result": raw});
+                    await __doFuncFetch("send_maintenance_alert", {"maint_result": raw, "msg_sid": sid});
                 } elif not raw["success"] {
                     console.log("[run_maintenance_direct] failed:", raw["error"]);
                 }
@@ -218,10 +218,14 @@ def:pub ClientApp() -> JsxElement {
                 }
             }
 
-            # Restore cached triage results (Twilio API returns fresh data without triage each poll)
+            # Sync triage cache with server — server is authoritative for status changes (YES/NO)
             for msg in messages {
                 sid = str(msg["sid"]) if msg["sid"] else "";
-                if sid and not msg["triage"] and _triage_cache[sid] {
+                if sid and msg["triage"] {
+                    # Server returned triage — update cache so status changes (Approved/Rejected) persist
+                    _triage_cache[sid] = msg["triage"];
+                } elif sid and not msg["triage"] and _triage_cache[sid] {
+                    # Server has no triage — restore from cache
                     msg["triage"] = _triage_cache[sid];
                 }
             }

@@ -169,11 +169,18 @@ async def:pub twilio_webhook(request: Request) -> dict {
             ticket_id = _pending_ticket["ticket_id"];
             tenant_phone = _pending_ticket.get("tenant_phone", "");
             vendor = _pending_ticket.get("vendor", "");
+            pending_sid = _pending_ticket.get("msg_sid", "");
             try {
                 root spawn approve_dispatch(ticket_id=ticket_id);
                 print("Ticket " + ticket_id + " approved by landlord");
             } except Exception as e {
                 print("approve_dispatch error: " + str(e));
+            }
+            # Update triage cache so next poll reflects approval
+            if pending_sid and pending_sid in _triage_by_sid and _triage_by_sid[pending_sid] {
+                if _triage_by_sid[pending_sid].get("result") {
+                    _triage_by_sid[pending_sid]["result"]["status"] = "Approved";
+                }
             }
             # Confirm to landlord
             send_sms(alert_num, "Approved. Dispatching " + vendor + " for ticket " + ticket_id + ".");
@@ -186,6 +193,13 @@ async def:pub twilio_webhook(request: Request) -> dict {
         } elif cmd in ["NO", "N", "REJECT", "DECLINE"] {
             ticket_id = _pending_ticket["ticket_id"];
             tenant_phone = _pending_ticket.get("tenant_phone", "");
+            pending_sid = _pending_ticket.get("msg_sid", "");
+            # Update triage cache so next poll reflects rejection
+            if pending_sid and pending_sid in _triage_by_sid and _triage_by_sid[pending_sid] {
+                if _triage_by_sid[pending_sid].get("result") {
+                    _triage_by_sid[pending_sid]["result"]["status"] = "Rejected";
+                }
+            }
             send_sms(alert_num, "Rejected ticket " + ticket_id + ". No vendor dispatched.");
             if tenant_phone {
                 send_sms(tenant_phone, "Update: Your repair request is under review. We will be in touch shortly.");
@@ -385,7 +399,7 @@ walker maintenance_phase1 {
 }
 
 
-def:pub send_maintenance_alert(maint_result: dict) -> dict {
+def:pub send_maintenance_alert(maint_result: dict, msg_sid: str = "") -> dict {
     alert_num = getenv("TWILIO_TARGET_PHONE_NUMBER") or _alert_number or "+15199992505";
     try {
         if maint_result and maint_result.get("owner_alert") {
@@ -402,9 +416,10 @@ def:pub send_maintenance_alert(maint_result: dict) -> dict {
             "tenant_phone": maint_result.get("tenant_phone", "") if maint_result else "",
             "vendor": maint_result.get("vendor", "") if maint_result else "",
             "unit": maint_result.get("unit", "") if maint_result else "",
-            "property": maint_result.get("property", "") if maint_result else ""
+            "property": maint_result.get("property", "") if maint_result else "",
+            "msg_sid": msg_sid
         };
-        print("[send_maintenance_alert] pending_ticket=" + _pending_ticket["ticket_id"]);
+        print("[send_maintenance_alert] pending_ticket=" + _pending_ticket["ticket_id"] + " sid=" + msg_sid);
         return {"success": True};
     } except Exception as e {
         print("[send_maintenance_alert] error: " + str(e));

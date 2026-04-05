@@ -14,7 +14,9 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
     has_vendor    = incident.assignee and incident.assignee != "" and incident.assignee != "None";
     triage_ran    = has_urgency or has_unit or has_category;
     is_resolved   = incident.status == "Resolved";
-    is_pending    = has_vendor and not is_resolved;
+    is_approved   = incident.status == "Approved";
+    is_rejected   = incident.status == "Rejected";
+    is_pending    = has_vendor and not is_resolved and not is_approved and not is_rejected;
 
     console.log("[workflow] incident:", incident);
     console.log("[workflow] has_message:", has_message, "triage_ran:", triage_ran, "has_vendor:", has_vendor, "is_resolved:", is_resolved);
@@ -38,16 +40,16 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
     nodes = [
         {"id": "root",            "label": "Incident Origin",  "x": 50,   "y": 300, "status": 2 if has_message else 0,                       "desc": "Inbound SMS message received",          "output": incident.message },
         {"id": "intake",          "label": "Message Intake",   "x": 340,  "y": 300, "status": 2 if triage_ran else (1 if has_message else 0), "desc": "Parses raw message and triggers triage", "output": "Parsed" if triage_ran else "Waiting" },
-        {"id": "triage_urgency",  "label": "Urgency",          "x": 630,  "y": 150, "status": 2 if has_urgency else (1 if triage_ran else 0),  "desc": "Evaluates situational severity",         "output": incident.urgency if has_urgency else ("Analyzing..." if triage_ran else "—") },
-        {"id": "triage_entity",   "label": "Entity Match",     "x": 630,  "y": 300, "status": 2 if has_unit else (1 if triage_ran else 0),     "desc": "Identifies tenant and property",         "output": incident.unit if has_unit else ("Identifying..." if triage_ran else "—") },
-        {"id": "triage_class",    "label": "Classification",   "x": 630,  "y": 450, "status": 2 if has_category else (1 if triage_ran else 0), "desc": "Categorizes maintenance issue",          "output": incident.category if has_category else ("Classifying..." if triage_ran else "—") },
+        {"id": "triage_urgency",  "label": "Urgency",          "x": 630,  "y": 150, "status": 2 if (has_urgency or has_vendor) else (1 if triage_ran else 0),  "desc": "Evaluates situational severity",         "output": incident.urgency if has_urgency else ("Done" if has_vendor else ("Analyzing..." if triage_ran else "—")) },
+        {"id": "triage_entity",   "label": "Entity Match",     "x": 630,  "y": 300, "status": 2 if (has_unit or has_vendor) else (1 if triage_ran else 0),     "desc": "Identifies tenant and property",         "output": incident.unit if has_unit else ("Done" if has_vendor else ("Identifying..." if triage_ran else "—")) },
+        {"id": "triage_class",    "label": "Classification",   "x": 630,  "y": 450, "status": 2 if (has_category or has_vendor) else (1 if triage_ran else 0), "desc": "Categorizes maintenance issue",          "output": incident.category if has_category else ("Done" if has_vendor else ("Classifying..." if triage_ran else "—")) },
         {"id": "context_history", "label": "Repair History",   "x": 920,  "y": 250, "status": 2 if triage_ran else 0,                         "desc": "Fetches previous tickets",               "output": "Checked" if triage_ran else "—" },
         {"id": "context_vendor",  "label": "Vendor Match",     "x": 920,  "y": 400, "status": 2 if has_vendor else (1 if triage_ran else 0),   "desc": "Finds suitable contractors",             "output": incident.assignee if has_vendor else "Searching..." },
         {"id": "risk_assess",     "label": "Risk Analyst",     "x": 1210, "y": 300, "status": 2 if has_vendor else 0,                         "desc": "Assesses liability and cost risks",      "output": "Low Risk" if has_vendor else "—" },
         {"id": "msg_tenant",      "label": "Tenant Reply",     "x": 1500, "y": 150, "status": 2 if has_vendor else 0,                         "desc": "Drafts acknowledgment SMS",              "output": "Draft Ready" if has_vendor else "—" },
         {"id": "msg_owner",       "label": "Owner Alert",      "x": 1500, "y": 300, "status": 2 if has_vendor else 0,                         "desc": "Drafts approval request",                "output": "Draft Ready" if has_vendor else "—" },
-        {"id": "gate_approval",   "label": "Approval Gate",    "x": 1500, "y": 450, "status": 2 if is_resolved else (3 if is_pending else 0),  "desc": "Human in the loop checkpoint",          "output": "Approved" if is_resolved else ("Pending" if is_pending else "—") },
-        {"id": "action_dispatch", "label": "Dispatch",         "x": 1790, "y": 450, "status": 2 if is_resolved else 0,                        "desc": "Dispatches vendor",                      "output": "Scheduled" if is_resolved else "—" }
+        {"id": "gate_approval",   "label": "Approval Gate",    "x": 1500, "y": 450, "status": 2 if (is_resolved or is_approved or is_rejected) else (3 if is_pending else 0),  "desc": "Human in the loop checkpoint",          "output": "Approved" if (is_resolved or is_approved) else ("Rejected" if is_rejected else ("Pending" if is_pending else "—")) },
+        {"id": "action_dispatch", "label": "Dispatch",         "x": 1790, "y": 450, "status": 2 if (is_resolved or is_approved) else (4 if is_rejected else 0),                   "desc": "Dispatches vendor",                      "output": "YES — Dispatched" if (is_resolved or is_approved) else ("NO — Rejected" if is_rejected else "—") }
     ];
 
     edges = [
@@ -75,6 +77,7 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
         if s == 1 { return "bg-white border-indigo-400 ring-4 ring-indigo-50 shadow-[0_8px_30px_rgba(99,102,241,0.15)] scale-105 z-20"; }
         if s == 2 { return "bg-white border-emerald-200 shadow-sm z-10 hover:shadow-md"; }
         if s == 3 { return "bg-white border-amber-300 shadow-[0_4px_20px_rgba(245,158,11,0.1)] z-10"; }
+        if s == 4 { return "bg-white border-red-300 shadow-[0_4px_20px_rgba(239,68,68,0.1)] z-10"; }
         return "";
     }
 
@@ -83,7 +86,7 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
             <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-white/80 backdrop-blur z-30 shadow-sm">
                 <div className="flex items-center gap-3">
                     <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Walker Execution Graph</span>
-                    <span className={"px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider " + ("bg-emerald-100 text-emerald-700" if is_resolved else ("bg-amber-100 text-amber-700" if is_pending else "bg-slate-100 text-slate-500"))}>
+                    <span className={"px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider " + ("bg-emerald-100 text-emerald-700" if (is_resolved or is_approved) else ("bg-red-100 text-red-700" if is_rejected else ("bg-amber-100 text-amber-700" if is_pending else "bg-slate-100 text-slate-500")))}>
                         {incident.status if incident.status else "Processing"}
                     </span>
                 </div>
@@ -130,8 +133,8 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
 
                         node_classes   = "absolute w-[240px] h-[110px] p-4 rounded-2xl border flex flex-col justify-between cursor-pointer transition-all duration-500 backdrop-blur-md hover:ring-2 hover:ring-indigo-200 " + status_classes(n["status"]) + (" translate-y-8 opacity-0 scale-95" if n["status"] == 0 else " translate-y-0 opacity-100 scale-100");
                         label_classes  = "text-xs font-extrabold uppercase tracking-wider " + ("text-slate-800" if n["status"] >= 1 else "text-slate-500");
-                        bar_classes    = "h-[3.5px] w-full rounded-full overflow-hidden mt-3 shadow-inner " + ("bg-slate-100" if n["status"] == 0 else ("bg-indigo-100" if n["status"] == 1 else ("bg-emerald-100" if n["status"] == 2 else "bg-amber-100")));
-                        output_classes = "absolute -bottom-9 rounded-full left-1/2 -translate-x-1/2 whitespace-nowrap px-3.5 py-1.5 shadow-lg border text-[11px] font-bold transition-all duration-500 z-30 " + ("bg-emerald-50 border-emerald-200 text-emerald-700 opacity-100 translate-y-0 scale-100" if n["status"] == 2 else ("bg-amber-50 border-amber-200 text-amber-700 opacity-100 translate-y-0 scale-100" if n["status"] == 3 else ("bg-indigo-50 border-indigo-200 text-indigo-600 opacity-100 translate-y-0 scale-100" if n["status"] == 1 else "opacity-0 -translate-y-6 scale-75 pointer-events-none")));
+                        bar_classes    = "h-[3.5px] w-full rounded-full overflow-hidden mt-3 shadow-inner " + ("bg-slate-100" if n["status"] == 0 else ("bg-indigo-100" if n["status"] == 1 else ("bg-emerald-100" if n["status"] == 2 else ("bg-red-100" if n["status"] == 4 else "bg-amber-100"))));
+                        output_classes = "absolute -bottom-9 rounded-full left-1/2 -translate-x-1/2 whitespace-nowrap px-3.5 py-1.5 shadow-lg border text-[11px] font-bold transition-all duration-500 z-30 " + ("bg-emerald-50 border-emerald-200 text-emerald-700 opacity-100 translate-y-0 scale-100" if n["status"] == 2 else ("bg-red-50 border-red-200 text-red-700 opacity-100 translate-y-0 scale-100" if n["status"] == 4 else ("bg-amber-50 border-amber-200 text-amber-700 opacity-100 translate-y-0 scale-100" if n["status"] == 3 else ("bg-indigo-50 border-indigo-200 text-indigo-600 opacity-100 translate-y-0 scale-100" if n["status"] == 1 else "opacity-0 -translate-y-6 scale-75 pointer-events-none"))));
 
                         return (
                             <div key={n["id"]} onClick={lambda -> None { selected_node = n; console.log("[workflow] selected node:", n); }} className={node_classes} style={{ left: str(n["x"]) + "px", top: str(n["y"]) + "px" }}>
@@ -144,6 +147,7 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
                                             {n["status"] == 1 and <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-ping"></span>}
                                             {n["status"] == 2 and not node_timings[n["id"]] and <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#34d399]"></span>}
                                             {n["status"] == 3 and <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_#fbbf24]"></span>}
+                                            {n["status"] == 4 and <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>}
                                         </div>
                                     </div>
                                     <p className={"text-[10.5px] leading-snug mt-1.5 font-medium line-clamp-2 " + ("text-slate-600" if n["status"] >= 1 else "text-slate-400")}>{n["desc"]}</p>
@@ -152,11 +156,13 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
                                     {n["status"] == 1 and <div className="h-full w-1/3 bg-indigo-500 rounded-full animate-[slide_1.5s_ease-in-out_infinite]"></div>}
                                     {n["status"] == 2 and <div className="h-full w-full bg-emerald-500 rounded-full"></div>}
                                     {n["status"] == 3 and <div className="h-full w-full bg-amber-500 rounded-full"></div>}
+                                    {n["status"] == 4 and <div className="h-full w-full bg-red-500 rounded-full"></div>}
                                 </div>
                                 <div className={output_classes}>
                                     <div className="flex items-center gap-1.5">
                                         {n["status"] == 2 and <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>}
                                         {n["status"] == 3 and <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                                        {n["status"] == 4 and <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>}
                                         {n["status"] == 1 and <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse inline-block shrink-0"></span>}
                                         {trunc_output}
                                     </div>
@@ -189,16 +195,16 @@ def:pub AiFlowDetailView(props: dict) -> JsxElement {
                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 shadow-sm">
                             <h4 className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 mb-3">Live Execution Status</h4>
                             <div className="flex items-center gap-3">
-                                <span className={"w-3.5 h-3.5 rounded-full shadow-sm " + (selected_node["status"] == 2 and "bg-emerald-500 shadow-emerald-500/30" or (selected_node["status"] == 1 and "bg-indigo-500 animate-pulse shadow-indigo-500/40" or (selected_node["status"] == 3 and "bg-amber-500 shadow-amber-500/30" or "bg-slate-300")))}></span>
+                                <span className={"w-3.5 h-3.5 rounded-full shadow-sm " + (selected_node["status"] == 2 and "bg-emerald-500 shadow-emerald-500/30" or (selected_node["status"] == 1 and "bg-indigo-500 animate-pulse shadow-indigo-500/40" or (selected_node["status"] == 3 and "bg-amber-500 shadow-amber-500/30" or (selected_node["status"] == 4 and "bg-red-500 shadow-red-500/30" or "bg-slate-300"))))}></span>
                                 <span className="text-sm font-bold text-slate-800">
-                                    {selected_node["status"] == 0 and "Not reached" or (selected_node["status"] == 1 and "Executing..." or (selected_node["status"] == 2 and "Completed" or "Awaiting approval"))}
+                                    {selected_node["status"] == 0 and "Not reached" or (selected_node["status"] == 1 and "Executing..." or (selected_node["status"] == 2 and "Completed" or (selected_node["status"] == 4 and "Rejected" or "Awaiting approval")))}
                                 </span>
                             </div>
                         </div>
                         {selected_node["status"] >= 2 and (
-                            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 shadow-sm">
-                                <h4 className="text-[10px] font-mono font-extrabold uppercase tracking-widest text-emerald-600 mb-3">Output</h4>
-                                <div className="font-mono text-sm font-medium text-emerald-800 bg-white border border-emerald-100 p-4 rounded-xl text-wrap break-words leading-relaxed shadow-sm">
+                            <div className={"rounded-2xl p-6 shadow-sm border " + ("bg-red-50 border-red-100" if selected_node["status"] == 4 else "bg-emerald-50 border-emerald-100")}>
+                                <h4 className={"text-[10px] font-mono font-extrabold uppercase tracking-widest mb-3 " + ("text-red-600" if selected_node["status"] == 4 else "text-emerald-600")}>Output</h4>
+                                <div className={"font-mono text-sm font-medium bg-white p-4 rounded-xl text-wrap break-words leading-relaxed shadow-sm border " + ("text-red-800 border-red-100" if selected_node["status"] == 4 else "text-emerald-800 border-emerald-100")}>
                                     > {selected_node["output"]}
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-emerald-100 flex items-center justify-between flex-wrap gap-2">
