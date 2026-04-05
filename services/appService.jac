@@ -4,7 +4,7 @@ import from pydantic { BaseModel }
 import from dotenv { load_dotenv }
 import from twilio.rest { Client }
 import from datetime { datetime }
-import from services.graphService { triage }
+import from services.graphService { triage, list_properties, list_tenants, add_property_node, register_tenant, delete_property_node, delete_tenant_node }
 import from logging { getLogger }
 import from services.graph.localdb { log_sms, log_walker_run, create_notification }
 
@@ -253,6 +253,67 @@ def:pub run_triage_for_message(body: str, from_number: str, msg_sid: str = "") -
     }
 }
 
+
+def:pub fetch_properties() -> dict {
+    result = root spawn list_properties();
+    return {"properties": result.reports[0] if (result and result.reports) else []};
+}
+
+
+def:pub fetch_tenants() -> dict {
+    result = root spawn list_tenants();
+    return {"tenants": result.reports if (result and result.reports) else []};
+}
+
+
+def:pub save_property_data(name: str, address: str) -> dict {
+    if not name {
+        return {"status": "error", "message": "Property name is required"};
+    }
+    result = root spawn add_property_node(name=name, address=address);
+    if result and result.reports {
+        return result.reports[0];
+    }
+    return {"status": "error", "message": "Failed to create property"};
+}
+
+
+def:pub save_tenant_data(tenant_name: str, tenant_phone: str, unit_number: str, rent_amount: float, property_name: str) -> dict {
+    if not (tenant_name and tenant_phone and unit_number and property_name) {
+        return {"status": "error", "message": "All fields are required"};
+    }
+    result = root spawn register_tenant(
+        tenant_name=tenant_name,
+        tenant_phone=tenant_phone,
+        unit_number=unit_number,
+        rent_amount=rent_amount,
+        lease_start="2025-01-01",
+        lease_end="2026-12-31",
+        property_name=property_name
+    );
+    if result and result.reports {
+        return result.reports[0];
+    }
+    return {"status": "error", "message": "Failed to register tenant"};
+}
+
+
+def:pub delete_property_data(property_id: str) -> dict {
+    result = root spawn delete_property_node(property_id=property_id);
+    if result and result.reports {
+        return result.reports[0];
+    }
+    return {"status": "error"};
+}
+
+
+def:pub delete_tenant_data(tenant_id: str) -> dict {
+    result = root spawn delete_tenant_node(tenant_id=tenant_id);
+    if result and result.reports {
+        return result.reports[0];
+    }
+    return {"status": "error"};
+}
 
 def:pub delete_message(msg_id: str) -> dict {
     try {

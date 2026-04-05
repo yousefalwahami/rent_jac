@@ -141,35 +141,63 @@ walker register_tenant {
         if self.property_name and here.name != self.property_name {
             return;
         }
+        # Find existing unit (case-insensitive) or create it
         units = [->: HasUnit :->];
+        target_unit = None;
         for u in units {
             if u.number.upper() == self.unit_number.upper() {
-                # Create lease + tenant
-                lease = Lease(
-                    start_date=self.lease_start,
-                    end_date=self.lease_end,
-                    rent_amount=self.rent_amount,
-                    deposit=self.rent_amount
-                );
-                u +>: HasLease :+> lease;
-                lease +>: HasTenant :+> Tenant(
-                    name=self.tenant_name,
-                    phone=self.tenant_phone,
-                    email=self.tenant_email,
-                    payment_status="current",
-                    move_in_date=self.lease_start
-                );
-                report {
-                    "status": "registered",
-                    "tenant": self.tenant_name,
-                    "phone": self.tenant_phone,
-                    "unit": self.unit_number,
-                    "property": here.name
-                };
-                disengage;
+                target_unit = u;
+                break;
             }
         }
-        report {"status": "error", "message": "Unit " + self.unit_number + " not found"};
+        if not target_unit {
+            target_unit = Unit(number=self.unit_number.upper(), bedrooms=1, bathrooms=1, sq_ft=0);
+            here +>: HasUnit :+> target_unit;
+        }
+        # Guard: skip if tenant with same phone already registered in this unit
+        existing_leases = [target_unit ->: HasLease :->];
+        for lease in existing_leases {
+            existing_tenants = [lease ->: HasTenant :->];
+            for t in existing_tenants {
+                if t.phone == self.tenant_phone {
+                    report {
+                        "status": "already_registered",
+                        "tenant": t.name,
+                        "phone": t.phone,
+                        "unit": target_unit.number,
+                        "property": here.name,
+                        "id": jid(t)
+                    };
+                    disengage;
+                }
+            }
+        }
+        # Create lease + tenant
+        lease = Lease(
+            start_date=self.lease_start,
+            end_date=self.lease_end,
+            rent_amount=self.rent_amount,
+            deposit=self.rent_amount
+        );
+        target_unit +>: HasLease :+> lease;
+        lease +>: HasTenant :+> Tenant(
+            name=self.tenant_name,
+            phone=self.tenant_phone,
+            email=self.tenant_email,
+            payment_status="current",
+            move_in_date=self.lease_start
+        );
+        tenants_created = [lease ->: HasTenant :->];
+        new_tenant = tenants_created[0] if tenants_created else None;
+        report {
+            "status": "registered",
+            "tenant": self.tenant_name,
+            "phone": self.tenant_phone,
+            "unit": target_unit.number,
+            "property": here.name,
+            "id": jid(new_tenant) if new_tenant else ""
+        };
+        disengage;
     }
 }
 
@@ -225,15 +253,14 @@ walker add_property_node {
     can create with Root entry {
         prop = Property(name=self.name, address=self.address, city="", state="", zip_code="");
         here ++> prop;
-        units_to_add = self.unit_numbers if self.unit_numbers else ["1A", "2A", "3B", "4B"];
-        for unit_num in units_to_add {
-            prop +>: HasUnit :+> Unit(number=unit_num, bedrooms=1, bathrooms=1, sq_ft=700);
+        for unit_num in self.unit_numbers {
+            prop +>: HasUnit :+> Unit(number=unit_num, bedrooms=1, bathrooms=1, sq_ft=0);
         }
         report {
             "status": "created",
             "id": jid(prop),
             "property": self.name,
-            "units": len(units_to_add)
+            "units": len(self.unit_numbers)
         };
     }
 }
