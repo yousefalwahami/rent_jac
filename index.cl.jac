@@ -21,10 +21,12 @@ def:pub ClientApp() -> JsxElement {
 
     if not initial_load {
         initial_load = True;
-        setTimeout(load_live_data, 100);
+        setTimeout(load_live_data, 500);
         setInterval(lambda -> None {
-            load_live_data();
-        }, 3000);
+            if not loading_live {
+                load_live_data();
+            }
+        }, 10000);
     }
     
     async def load_live_data() -> None {
