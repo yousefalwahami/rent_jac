@@ -5,7 +5,7 @@ import from dotenv { load_dotenv }
 import from twilio.rest { Client }
 import from services.graph.models { Property, Unit, Lease, Tenant }
 import from datetime { datetime }
-import from services.graphService { triage, handle_maintenance, list_properties, list_tenants, add_property_node, register_tenant, delete_property_node, delete_tenant_node, approve_dispatch }
+import from services.graphService { triage, handle_maintenance, diagnose_issue, list_properties, list_tenants, add_property_node, register_tenant, delete_property_node, delete_tenant_node, approve_dispatch }
 import from logging { getLogger }
 import from services.graph.localdb { log_sms, log_walker_run, create_notification }
 
@@ -162,7 +162,7 @@ async def:pub twilio_webhook(request: Request) -> dict {
     log_sms(from_number, twilio_num, body, "inbound", msg_sid);
 
     # ── Landlord YES/NO approval flow ────────────────────────
-    alert_num = getenv("TWILIO_TARGET_PHONE_NUMBER") or _alert_number;
+    alert_num = getenv("TWILIO_TARGET_PHONE_NUMBER") or _alert_number or "+15199992505";
     if from_number == alert_num and _pending_ticket and _pending_ticket.get("ticket_id") {
         cmd = body.strip().upper();
         if cmd in ["YES", "Y", "APPROVE", "CONFIRMED"] {
@@ -330,6 +330,76 @@ walker run_maintenance_direct {
             print("[run_maintenance_direct] error: " + str(e));
             report {"success": False, "error": str(e)};
         }
+    }
+}
+
+
+walker maintenance_phase1 {
+    has body: str = "";
+    has from_number: str = "";
+
+    can process with Root entry {
+        try {
+            for p in [here -->][?:Property] {
+                for u in [p -->][?:Unit] {
+                    for l in [u -->][?:Lease] {
+                        for t in [l -->][?:Tenant] {
+                            if t.phone == self.from_number {
+                                print("[maintenance_phase1] diagnosing for tenant=" + t.name);
+                                t0 = datetime.now();
+                                diagnosis = diagnose_issue(self.body);
+                                ms = int((datetime.now() - t0).total_seconds() * 1000);
+                                print("[maintenance_phase1] category=" + diagnosis.category + " urgency=" + diagnosis.urgency + " (" + str(ms) + "ms)");
+                                report {
+                                    "step": "diagnosed",
+                                    "tenant": t.name,
+                                    "property": p.name,
+                                    "unit": u.number,
+                                    "category": diagnosis.category,
+                                    "urgency": diagnosis.urgency,
+                                    "summary": diagnosis.summary,
+                                    "recommended_action": diagnosis.recommended_action,
+                                    "timings": {"entity_ms": 1, "classify_ms": ms, "urgency_ms": ms, "diagnose_ms": ms}
+                                };
+                                disengage;
+                            }
+                        }
+                    }
+                }
+            }
+            report {"step": "not_found", "error": "Tenant not found for " + self.from_number};
+        } except Exception as e {
+            print("[maintenance_phase1] error: " + str(e));
+            report {"step": "error", "error": str(e)};
+        }
+    }
+}
+
+
+def:pub send_maintenance_alert(maint_result: dict) -> dict {
+    alert_num = getenv("TWILIO_TARGET_PHONE_NUMBER") or _alert_number or "+15199992505";
+    try {
+        if maint_result and maint_result.get("owner_alert") {
+            owner_msg = str(maint_result["owner_alert"]) + " — Reply YES to approve or NO to reject.";
+            send_sms(alert_num, owner_msg);
+            print("[send_maintenance_alert] owner alert sent to " + alert_num);
+        }
+        if maint_result and maint_result.get("tenant_reply") and maint_result.get("tenant_phone") {
+            send_sms(str(maint_result["tenant_phone"]), str(maint_result["tenant_reply"]));
+            print("[send_maintenance_alert] tenant reply sent to " + str(maint_result["tenant_phone"]));
+        }
+        _pending_ticket = {
+            "ticket_id": maint_result.get("ticket_id", "") if maint_result else "",
+            "tenant_phone": maint_result.get("tenant_phone", "") if maint_result else "",
+            "vendor": maint_result.get("vendor", "") if maint_result else "",
+            "unit": maint_result.get("unit", "") if maint_result else "",
+            "property": maint_result.get("property", "") if maint_result else ""
+        };
+        print("[send_maintenance_alert] pending_ticket=" + _pending_ticket["ticket_id"]);
+        return {"success": True};
+    } except Exception as e {
+        print("[send_maintenance_alert] error: " + str(e));
+        return {"success": False, "error": str(e)};
     }
 }
 

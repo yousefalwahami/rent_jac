@@ -31,6 +31,89 @@ def:pub ClientApp() -> JsxElement {
         }, 10000);
     }
     
+    def build_incidents_list(msgs: list) -> list {
+        result = [];
+        ctr = 1000;
+        for msg in msgs {
+            t_name = str(msg["tenant_name"]) if msg["matched"] else str(msg["from"]);
+            p_name = str(msg["property_name"]) if msg["matched"] else "Unknown Property";
+            u_name = str(msg["unit"]) if msg["matched"] else "?";
+            id_val = str(msg["sid"]) if msg["sid"] else str(ctr);
+
+            triage_data = msg["triage"] if ("triage" in msg and msg["triage"]) else None;
+            maint_result = None;
+            if triage_data and triage_data["event_type"] == "maintenance" and triage_data["result"] {
+                maint_result = triage_data["result"];
+            }
+
+            inc_category = "Incoming SMS";
+            inc_urgency = "Normal";
+            inc_status = "Open";
+            inc_summary = "Awaiting AI Triage...";
+            inc_tenant = t_name;
+            inc_property = p_name;
+            inc_unit = u_name;
+            inc_owner_note = "Tenant " + t_name + " sent a message: " + str(msg["body"]);
+            inc_assignee = "";
+            inc_tenant_reply = "";
+            inc_recommended = "";
+            inc_confidence = "0%";
+            inc_property_code = "??";
+
+            if maint_result {
+                inc_category = str(maint_result["category"]).split(".")[-1] if maint_result["category"] else "Maintenance";
+                if inc_category { inc_category = inc_category[0].toUpperCase() + inc_category.slice(1); }
+                inc_urgency = str(maint_result["urgency"]).split(".")[-1] if maint_result["urgency"] else "Medium";
+                if inc_urgency { inc_urgency = inc_urgency[0].toUpperCase() + inc_urgency.slice(1); }
+                inc_status = "pending_approval";
+                inc_summary = maint_result["diagnosis"] if maint_result["diagnosis"] else "";
+                inc_tenant = maint_result["tenant"] if maint_result["tenant"] else t_name;
+                inc_property = maint_result["property"] if maint_result["property"] else p_name;
+                inc_unit = maint_result["unit"] if maint_result["unit"] else u_name;
+                inc_owner_note = maint_result["owner_alert"] if maint_result["owner_alert"] else "";
+                inc_assignee = maint_result["vendor"] if maint_result["vendor"] else "";
+                inc_tenant_reply = maint_result["tenant_reply"] if maint_result["tenant_reply"] else "";
+                inc_recommended = maint_result["recommended_action"] if maint_result["recommended_action"] else "";
+                inc_confidence = "95%";
+                inc_property_code = inc_property[0:2].toUpperCase() + "-" + inc_unit if inc_property and inc_property != "Unknown Property" else "??";
+            } elif triage_data and triage_data["event_type"] == "maintenance" {
+                # Phase 1 complete: diagnosis done, vendor search in progress
+                inc_category = str(triage_data["category"]).split(".")[-1] if triage_data["category"] else "Maintenance";
+                if inc_category { inc_category = inc_category[0].toUpperCase() + inc_category.slice(1); }
+                inc_urgency = str(triage_data["urgency"]).split(".")[-1] if triage_data["urgency"] else "Medium";
+                if inc_urgency { inc_urgency = inc_urgency[0].toUpperCase() + inc_urgency.slice(1); }
+                inc_status = "Processing";
+                inc_summary = triage_data["summary"] if triage_data["summary"] else "Searching for vendors...";
+                if triage_data["tenant"] { inc_tenant = str(triage_data["tenant"]); }
+                if triage_data["property"] { inc_property = str(triage_data["property"]); }
+                if triage_data["unit"] { inc_unit = str(triage_data["unit"]); }
+                inc_confidence = "85%";
+            } elif triage_data and triage_data["event_type"] {
+                event_name = str(triage_data["event_type"]);
+                inc_category = event_name[0].toUpperCase() + event_name.slice(1);
+                inc_status = "Classified";
+                inc_summary = "Classified as " + event_name;
+                if triage_data["tenant"] { inc_tenant = str(triage_data["tenant"]); }
+                if triage_data["property"] { inc_property = str(triage_data["property"]); }
+                if triage_data["unit"] { inc_unit = str(triage_data["unit"]); }
+                inc_confidence = "90%";
+            }
+
+            inc = create_incident_record("INC-" + id_val, str(msg["time"]), str(msg["body"]), str(msg["from"]), inc_tenant, inc_property, inc_unit, inc_category, inc_urgency, inc_status, inc_confidence, inc_summary, inc_owner_note, inc_property_code);
+            inc.recommended_action = inc_recommended;
+            inc.tenant_reply = inc_tenant_reply;
+            inc.assignee = inc_assignee;
+            if maint_result and "timings" in maint_result {
+                inc.timings = maint_result["timings"];
+            } elif triage_data and "timings" in triage_data {
+                inc.timings = triage_data["timings"];
+            }
+            result.append(inc);
+            ctr += 1;
+        }
+        return result;
+    }
+
     async def load_live_data() -> None {
         if not jacIsLoggedIn() {
             loading_live = False;
@@ -98,13 +181,36 @@ def:pub ClientApp() -> JsxElement {
                 for msg in needs_triage {
                     try {
                         sid = str(msg["sid"]) if msg["sid"] else "";
+
+                        # ── Phase 1: Diagnosis only (fast, ~500ms) ──────────────
+                        p1 = await __doWalkerFetch("maintenance_phase1", "", {"body": str(msg["body"]), "from_number": str(msg["from"])});
+                        console.log("[phase1] reports=", p1["reports"]);
+                        if p1 and p1["reports"] and p1["reports"][0] and p1["reports"][0]["step"] == "diagnosed" {
+                            d = p1["reports"][0];
+                            partial = {
+                                "status": "processing",
+                                "event_type": "maintenance",
+                                "tenant": d["tenant"],
+                                "property": d["property"],
+                                "unit": d["unit"],
+                                "category": d["category"],
+                                "urgency": d["urgency"],
+                                "summary": d["summary"],
+                                "result": None,
+                                "timings": d["timings"]
+                            };
+                            msg["triage"] = partial;
+                            if sid { _triage_cache[sid] = partial; }
+                            live_incidents = build_incidents_list(messages);
+                        }
+
+                        # ── Phase 2: Vendor search + full pipeline (slow, 3–8s) ──
                         tr = await __doWalkerFetch("run_maintenance_direct", "", {"body": str(msg["body"]), "from_number": str(msg["from"])});
                         console.log("[run_maintenance_direct] reports=", tr["reports"]);
                         triage_val = None;
                         if tr and tr["reports"] and tr["reports"][0] {
                             raw = tr["reports"][0];
                             if raw["ticket_id"] {
-                                # Wrap raw maintenance result in triage envelope so rest of client code works unchanged
                                 triage_val = {
                                     "status": "processed",
                                     "event_type": "maintenance",
@@ -114,8 +220,9 @@ def:pub ClientApp() -> JsxElement {
                                     "result": raw,
                                     "timings": raw["timings"] if "timings" in raw else {}
                                 };
+                                await __doFuncFetch("send_maintenance_alert", {"maint_result": raw});
                             } elif not raw["success"] {
-                                console.log("[run_maintenance_direct] not found:", raw["error"]);
+                                console.log("[run_maintenance_direct] failed:", raw["error"]);
                             }
                         }
                         if triage_val { msg["triage"] = triage_val; }
@@ -123,77 +230,7 @@ def:pub ClientApp() -> JsxElement {
                     } except Exception {}
                 }
             }
-            new_incidents = [];
-            id_counter = 1000;
-            for msg in messages {
-                t_name = str(msg["tenant_name"]) if msg["matched"] else str(msg["from"]);
-                p_name = str(msg["property_name"]) if msg["matched"] else "Unknown Property";
-                u_name = str(msg["unit"]) if msg["matched"] else "?";
-
-                id_val = str(msg["sid"]) if msg["sid"] else str(id_counter);
-
-                triage_data = msg["triage"] if ("triage" in msg and msg["triage"]) else None;
-                maint_result = None;
-                console.log("[triage_data] sid=" + str(msg["sid"]) + " triage=", triage_data);
-                if triage_data and triage_data["event_type"] == "maintenance" and triage_data["result"] {
-                    maint_result = triage_data["result"];
-                    console.log("[maint_result]", maint_result);
-                }
-
-                inc_category = "Incoming SMS";
-                inc_urgency = "Normal";
-                inc_status = "Open";
-                inc_summary = "Awaiting AI Triage...";
-                inc_tenant = t_name;
-                inc_property = p_name;
-                inc_unit = u_name;
-                inc_owner_note = "Tenant " + t_name + " sent a message: " + str(msg["body"]);
-                inc_assignee = "";
-                inc_tenant_reply = "";
-                inc_recommended = "";
-                inc_confidence = "0%";
-                inc_property_code = "??";
-
-                if maint_result {
-                    inc_category = str(maint_result["category"]).split(".")[-1] if maint_result["category"] else "Maintenance";
-                    if inc_category { inc_category = inc_category[0].toUpperCase() + inc_category.slice(1); }
-                    inc_urgency = str(maint_result["urgency"]).split(".")[-1] if maint_result["urgency"] else "Medium";
-                    if inc_urgency { inc_urgency = inc_urgency[0].toUpperCase() + inc_urgency.slice(1); }
-                    inc_status = "pending_approval";
-                    inc_summary = maint_result["diagnosis"] if maint_result["diagnosis"] else "";
-                    inc_tenant = maint_result["tenant"] if maint_result["tenant"] else t_name;
-                    inc_property = maint_result["property"] if maint_result["property"] else p_name;
-                    inc_unit = maint_result["unit"] if maint_result["unit"] else u_name;
-                    inc_owner_note = maint_result["owner_alert"] if maint_result["owner_alert"] else "";
-                    inc_assignee = maint_result["vendor"] if maint_result["vendor"] else "";
-                    inc_tenant_reply = maint_result["tenant_reply"] if maint_result["tenant_reply"] else "";
-                    inc_recommended = maint_result["recommended_action"] if maint_result["recommended_action"] else "";
-                    inc_confidence = "95%";
-                    inc_property_code = inc_property[0:2].toUpperCase() + "-" + inc_unit if inc_property and inc_property != "Unknown Property" else "??";
-                } elif triage_data and triage_data["event_type"] {
-                    event_name = str(triage_data["event_type"]);
-                    inc_category = event_name[0].toUpperCase() + event_name.slice(1);
-                    inc_status = "Classified";
-                    inc_summary = "Classified as " + event_name;
-                    if triage_data["tenant"] { inc_tenant = str(triage_data["tenant"]); }
-                    if triage_data["property"] { inc_property = str(triage_data["property"]); }
-                    if triage_data["unit"] { inc_unit = str(triage_data["unit"]); }
-                    inc_confidence = "90%";
-                }
-
-                inc = create_incident_record("INC-" + id_val, str(msg["time"]), str(msg["body"]), str(msg["from"]), inc_tenant, inc_property, inc_unit, inc_category, inc_urgency, inc_status, inc_confidence, inc_summary, inc_owner_note, inc_property_code);
-                inc.recommended_action = inc_recommended;
-                inc.tenant_reply = inc_tenant_reply;
-                inc.assignee = inc_assignee;
-                if maint_result and "timings" in maint_result {
-                    inc.timings = maint_result["timings"];
-                } elif triage_data and "timings" in triage_data {
-                    inc.timings = triage_data["timings"];
-                }
-                new_incidents.append(inc);
-                id_counter += 1;
-            }
-            live_incidents = new_incidents;
+            live_incidents = build_incidents_list(messages);
         } except Exception as ex {
             print("Failed to sync live data: " + str(ex));
         }
