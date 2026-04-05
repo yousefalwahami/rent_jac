@@ -419,6 +419,14 @@ def:pub send_maintenance_alert(maint_result: dict, msg_sid: str = "") -> dict {
             "property": maint_result.get("property", "") if maint_result else "",
             "msg_sid": msg_sid
         };
+        # Populate _triage_by_sid so YES/NO updates are visible on next poll
+        if msg_sid and maint_result {
+            _triage_by_sid[msg_sid] = {
+                "status": "processed",
+                "event_type": "maintenance",
+                "result": maint_result
+            };
+        }
         print("[send_maintenance_alert] pending_ticket=" + _pending_ticket["ticket_id"] + " sid=" + msg_sid);
         return {"success": True};
     } except Exception as e {
