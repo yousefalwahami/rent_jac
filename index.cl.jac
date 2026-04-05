@@ -1,5 +1,5 @@
 import from "@jac/runtime" { __doFuncFetch, jacIsLoggedIn, jacLogout }
-cl import from .dashboard { dashboard_view }
+cl import from .dashboard { DashboardView }
 cl import from .tenants_properties { TenantsPropertiesView }
 cl import from .incidents { IncidentsView }
 cl import from .settings { SettingsView }
@@ -172,10 +172,29 @@ def:pub ClientApp() -> JsxElement {
     }
 
     def content() -> JsxElement {
-        if current_view == "Dashboard" { return dashboard_view(live_incidents, selected_incident, set_selected, lambda inc: IncidentRecord -> None {
-            __doFuncFetch("delete_message", {"msg_id": inc.id});
-            setTimeout(load_live_data, 300);
-        }); }
+        if current_view == "Dashboard" { 
+            return <DashboardView 
+                incidents={live_incidents} 
+                selected={selected_incident} 
+                set_selected={set_selected} 
+                delete_incident={lambda inc: any -> None {
+                    __doFuncFetch("delete_message", {"msg_id": inc.id});
+                    setTimeout(load_live_data, 300);
+                }}
+                delete_bulk={lambda ids: any -> None {
+                    for i in ids {
+                        __doFuncFetch("delete_message", {"msg_id": i});
+                    }
+                    setTimeout(load_live_data, 300);
+                }}
+                delete_all={lambda -> None {
+                    for i in live_incidents {
+                        __doFuncFetch("delete_message", {"msg_id": i.id});
+                    }
+                    setTimeout(load_live_data, 300);
+                }}
+            />; 
+        }
         if current_view == "Incidents" { return <IncidentsView incidents={live_incidents} selected={selected_incident} set_selected={set_selected} search={search} set_search={lambda value: str -> None { search = value; }} urgency_filter={urgency_filter} set_urgency={lambda value: str -> None { urgency_filter = value; }} category_filter={category_filter} set_category={lambda value: str -> None { category_filter = value; }} viewing_detail={viewing_detail} set_viewing_detail={lambda v: bool -> None { viewing_detail = v; }} />; }
         if current_view == "SMS Inbox" { return <SmsInboxView />; }
         if current_view == "Tenants & Properties" { return <TenantsPropertiesView />; }
