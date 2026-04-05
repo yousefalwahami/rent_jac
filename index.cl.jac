@@ -23,6 +23,11 @@ def:pub ClientApp() -> JsxElement {
 
     if not initial_load {
         initial_load = True;
+        # Restore triage cache from localStorage before first poll
+        try {
+            raw_cache = localStorage.getItem("rentora_triage_cache");
+            if raw_cache { _triage_cache = JSON.parse(raw_cache); }
+        } except Exception {}
         setTimeout(load_live_data, 2000);
         setInterval(lambda -> None {
             if not loading_live {
@@ -116,6 +121,10 @@ def:pub ClientApp() -> JsxElement {
         return result;
     }
 
+    def save_triage_cache() -> None {
+        try { localStorage.setItem("rentora_triage_cache", JSON.stringify(_triage_cache)); } except Exception {}
+    }
+
     async def run_triage_bg(msg: dict, sid: str, msgs: list) -> None {
         # Landlord alert number is not a tenant — never create tickets for it
         if str(msg["from"]) == "+15199992505" { return; }
@@ -139,7 +148,7 @@ def:pub ClientApp() -> JsxElement {
                     "timings": d["timings"]
                 };
                 msg["triage"] = partial;
-                if sid { _triage_cache[sid] = partial; }
+                if sid { _triage_cache[sid] = partial; save_triage_cache(); }
                 live_incidents = build_incidents_list(msgs);
             }
         } except Exception {}
@@ -167,7 +176,7 @@ def:pub ClientApp() -> JsxElement {
                 }
             }
             if triage_val { msg["triage"] = triage_val; }
-            if triage_val and sid { _triage_cache[sid] = triage_val; }
+            if triage_val and sid { _triage_cache[sid] = triage_val; save_triage_cache(); }
             live_incidents = build_incidents_list(msgs);
         } except Exception {}
     }
@@ -219,16 +228,19 @@ def:pub ClientApp() -> JsxElement {
             }
 
             # Sync triage cache with server — server is authoritative for status changes (YES/NO)
+            cache_dirty = False;
             for msg in messages {
                 sid = str(msg["sid"]) if msg["sid"] else "";
                 if sid and msg["triage"] {
                     # Server returned triage — update cache so status changes (Approved/Rejected) persist
                     _triage_cache[sid] = msg["triage"];
+                    cache_dirty = True;
                 } elif sid and not msg["triage"] and _triage_cache[sid] {
                     # Server has no triage — restore from cache
                     msg["triage"] = _triage_cache[sid];
                 }
             }
+            if cache_dirty { save_triage_cache(); }
 
             # Auto-run triage once per SID per session (prevents rate limit spam)
             needs_triage = [];
