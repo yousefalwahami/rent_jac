@@ -1,13 +1,14 @@
 import from os { getenv }
-import from os { getenv }
 import from fastapi { Request, HTTPException }
 import from pydantic { BaseModel }
 import from dotenv { load_dotenv }
 import from twilio.rest { Client }
 import from datetime { datetime }
 import from services.graphService { triage }
+import from logging { getLogger }
 
 glob _env: any = load_dotenv();
+glob _twilio_log: any = getLogger("twilio.http_client").setLevel(40);
 
 
 glob messages: list = [];
@@ -148,11 +149,12 @@ async def:pub twilio_webhook(request: Request) -> dict {
     body = str(form.get("Body") or "");
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S");
 
-    messages.insert(0, {
+    msg_entry = {
         "from": from_number,
         "body": body,
         "time": timestamp,
-    });
+        "triage": None,
+    };
 
     print("Incoming Twilio SMS from " + from_number + ": " + body);
 
@@ -162,6 +164,7 @@ async def:pub twilio_webhook(request: Request) -> dict {
         result = root spawn triage(message=body, sender_phone=from_number);
         if result.reports {
             triage_result = result.reports[0];
+            msg_entry["triage"] = triage_result;
             print("Triage result: " + str(triage_result));
 
             # If maintenance was processed, send SMS notifications
@@ -182,6 +185,8 @@ async def:pub twilio_webhook(request: Request) -> dict {
     } except Exception as e {
         print("Triage pipeline error: " + str(e));
     }
+
+    messages.insert(0, msg_entry);
 
     if _alert_number and not triage_result {
         try {

@@ -46,22 +46,74 @@ def:pub ClientApp() -> JsxElement {
                 new_incidents = [];
                 id_counter = 1000;
                 for msg in messages {
+                    # Check if this message has triage data from the AI pipeline
+                    triage_data = msg["triage"] if ("triage" in msg and msg["triage"]) else None;
+                    maint_result = None;
+                    if triage_data and triage_data["event_type"] == "maintenance" and triage_data["result"] {
+                        maint_result = triage_data["result"];
+                    }
+
+                    inc_category = "Incoming SMS";
+                    inc_urgency = "Normal";
+                    inc_status = "Open";
+                    inc_summary = "Awaiting AI Triage...";
+                    inc_tenant = str(msg["from"]);
+                    inc_property = "Unknown Property";
+                    inc_unit = "?";
+                    inc_owner_note = "Tenant " + str(msg["from"]) + " sent: " + str(msg["body"]);
+                    inc_assignee = "";
+                    inc_tenant_reply = "";
+                    inc_recommended = "";
+                    inc_confidence = "0%";
+                    inc_property_code = "??";
+
+                    if maint_result {
+                        inc_category = str(maint_result["category"]).split(".")[-1] if maint_result["category"] else "Maintenance";
+                        # Capitalize first letter
+                        if inc_category { inc_category = inc_category[0].toUpperCase() + inc_category.slice(1); }
+                        inc_urgency = str(maint_result["urgency"]).split(".")[-1] if maint_result["urgency"] else "Medium";
+                        if inc_urgency { inc_urgency = inc_urgency[0].toUpperCase() + inc_urgency.slice(1); }
+                        inc_status = "pending_approval";
+                        inc_summary = maint_result["diagnosis"] if maint_result["diagnosis"] else "";
+                        inc_tenant = maint_result["tenant"] if maint_result["tenant"] else str(msg["from"]);
+                        inc_property = maint_result["property"] if maint_result["property"] else "Unknown";
+                        inc_unit = maint_result["unit"] if maint_result["unit"] else "?";
+                        inc_owner_note = maint_result["owner_alert"] if maint_result["owner_alert"] else "";
+                        inc_assignee = maint_result["vendor"] if maint_result["vendor"] else "";
+                        inc_tenant_reply = maint_result["tenant_reply"] if maint_result["tenant_reply"] else "";
+                        inc_recommended = maint_result["recommended_action"] if maint_result["recommended_action"] else "";
+                        inc_confidence = "95%";
+                        inc_property_code = inc_property[0:2].toUpperCase() + "-" + inc_unit if inc_property else "??";
+                    } elif triage_data and triage_data["event_type"] {
+                        event_name = str(triage_data["event_type"]);
+                        inc_category = event_name[0].toUpperCase() + event_name.slice(1);
+                        inc_status = "Classified";
+                        inc_summary = "Classified as " + event_name;
+                        if triage_data["tenant"] { inc_tenant = str(triage_data["tenant"]); }
+                        if triage_data["property"] { inc_property = str(triage_data["property"]); }
+                        if triage_data["unit"] { inc_unit = str(triage_data["unit"]); }
+                        inc_confidence = "90%";
+                    }
+
                     inc = create_incident_record(
                         "INC-" + str(id_counter),
                         str(msg["time"]),
                         str(msg["body"]),
                         str(msg["from"]),
-                        str(msg["from"]),
-                        "Unknown Property",
-                        "?",
-                        "Incoming SMS",
-                        "Normal",
-                        "Open",
-                        "0%",
-                        "Awaiting AI Triage...",
-                        "Tenant " + str(msg["from"]) + " sent a message: " + str(msg["body"]),
-                        "??"
+                        inc_tenant,
+                        inc_property,
+                        inc_unit,
+                        inc_category,
+                        inc_urgency,
+                        inc_status,
+                        inc_confidence,
+                        inc_summary,
+                        inc_owner_note,
+                        inc_property_code
                     );
+                    inc.recommended_action = inc_recommended;
+                    inc.tenant_reply = inc_tenant_reply;
+                    inc.assignee = inc_assignee;
                     new_incidents.append(inc);
                     id_counter += 1;
                 }
@@ -136,10 +188,6 @@ def:pub ClientApp() -> JsxElement {
     icon_settings = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
 
     title_text = current_view;
-    if current_view == "Incidents" and selected_incident {
-        person_name = selected_incident.tenant if selected_incident.tenant else "Unknown";
-        title_text = "Incidents / " + person_name;
-    }
 
     return (
         <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden font-inter selection:bg-indigo-100 selection:text-indigo-900">
