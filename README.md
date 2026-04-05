@@ -1,79 +1,167 @@
-# Fullstack Starter
+# Rentora (PropOS)
 
-A full-stack Jac starter template with user authentication and a working backend function demo.
+Agentic property management system built with [Jac](https://docs.jaseci.org/) for JacHacks 2026.
+
+SMS comes in → AI triage classifies it → walkers diagnose, assess risk, select vendor → landlord approves → vendor dispatched. All on a live property graph.
+
+## Quick Start
+
+```bash
+# 1. Install dependencies
+pip install jaclang
+uv pip install --python ~/.local/share/uv/tools/jaclang/bin/python twilio
+
+# 2. Set up .env (see Environment Variables below)
+cp .env.example .env
+
+# 3. Run
+jac start main.jac
+```
+
+## Environment Variables
+
+```env
+# Twilio
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_PHONE_NUMBER=+1...        # Your Twilio number
+TWILIO_TARGET_PHONE_NUMBER=+1... # Your personal phone (for testing + alerts)
+OWNER_NAME=Your Name
+
+# AI Inference (by llm() → Groq, free tier)
+GROQ_API_KEY=gsk_...
+
+# Persistent Memory (Backboard.io)
+BACKBOARD_API_KEY=bk_...
+```
+
+## Architecture
+
+### AI Stack
+
+| Layer | Provider | Purpose |
+|---|---|---|
+| `by llm()` inference | **Groq llama-3.1-8b-instant** via byllm (free) | Triage, diagnosis, vendor selection, risk assessment, SMS drafts |
+| Persistent memory | **Backboard.io** via `bb_remember` / `bb_recall` | Cross-session tenant history, vendor track records |
+| Graph state | **Jac graph store** (built-in) | Property graph — nodes, edges, walker traversal |
+
+`by llm()` talks to Groq directly (free tier, configured in `jac.toml`). Sign up at console.groq.com to get your free API key.
+
+### Database Layers
+
+```
+┌─────────────────────────────────────────────────┐
+│  Layer 1: JAC Graph Store (nodes/edges)         │  ← Property graph lives here
+│  Default: SQLite (dev) → MongoDB (prod)         │
+├─────────────────────────────────────────────────┤
+│  Layer 2: store() KV Store                      │  ← SMS logs, walker outputs, events
+│  Default: SQLite (dev) → Redis (prod)           │
+├─────────────────────────────────────────────────┤
+│  Layer 3: Python interop → raw MongoDB/Postgres │  ← Complex queries, full documents
+│  (motor, pymongo, asyncpg, etc.)                │
+└─────────────────────────────────────────────────┘
+```
+
+**For development:** SQLite works out of the box (zero setup).
+**For production:** Set `MONGODB_URI` and `REDIS_URL` — Jac handles the switch.
+
+### MongoDB Collections (Production)
+
+```
+rentora/
+├── users            ← landlord accounts (email, hashed pw, portfolio_id)
+├── properties       ← property records (address, units[], owner_id)
+├── tenants          ← tenant profiles (name, phone, unit_id, screening_data)
+├── leases           ← lease documents (unit_id, tenant_id, rent, start, end, status)
+├── tickets          ← maintenance tickets (unit_id, category, status, vendor_id, created, resolved)
+├── vendors          ← contractor profiles (name, category, rating, avg_cost, phone, job_history[])
+├── sms_messages     ← all inbound/outbound SMS (unit_id, from, body, direction, ts)
+├── walker_logs      ← every walker run (walker, unit_id, input, output, duration_ms, ts)
+├── payments         ← rent payment records (tenant_id, amount, date, status)
+└── notifications    ← approval gates + landlord alerts (type, payload, read, ts)
+```
+
+### Quick Decision Guide
+
+| What you're storing | Where | How |
+|---|---|---|
+| Property graph (units, tenants, leases, vendors) | JAC graph store | Define nodes — auto-persisted to SQLite/MongoDB |
+| Inbound SMS messages | MongoDB `sms_messages` | `log_sms()` via Python interop |
+| Walker execution logs | MongoDB `walker_logs` | `log_walker_run()` via Python interop |
+| Approval gate state | `store()` KV | `store(key="approval:{ticket_id}", value={...})` |
+| User accounts (landlords) | JAC auth built-in | `/user/register` + `/user/login` |
+| Backboard memory (cross-session history) | Backboard | `bb_remember()` / `bb_recall()` via Python interop |
+
+### Property Graph
+
+```
+Root → Property →(HasUnit)→ Unit →(HasLease)→ Lease →(HasTenant)→ Tenant
+                 →(Services)→ Vendor
+                              Unit →(HasTicket)→ Ticket
+```
+
+### AI Pipeline (per SMS)
+
+```
+SMS Webhook → Triage Walker → classify_event() [by llm()]
+                                    │
+                            ┌───────┴───────┐
+                            │  MAINTENANCE   │
+                            └───────┬───────┘
+                                    ▼
+                         handle_maintenance walker
+                         ├─ diagnose_issue()     [by llm()]
+                         ├─ assess_risk()        [by llm()]
+                         ├─ select_vendor()      [by llm()]
+                         ├─ draft_tenant_reply() [by llm()]
+                         ├─ draft_owner_alert()  [by llm()]
+                         └─ Create Ticket node
+                                    ▼
+                         Owner Approval Gate
+                                    ▼
+                         Vendor Dispatch (SMS)
+```
 
 ## Project Structure
 
 ```
-jactastic/
-├── jac.toml                    # Project configuration
-├── main.jac                    # Entry point (server + client)
+rent_jac/
+├── main.jac                          # Entry point — imports all symbols
+├── jac.toml                          # Project config + byllm model settings
 ├── services/
-│   └── appService.jac          # Server-side functions (add yours here)
-├── pages/
-│   ├── LoginPage.cl.jac        # Login / signup page
-│   └── DashboardPage.cl.jac    # Main dashboard (protected)
-├── components/
-│   └── GreetCard.cl.jac        # Demo component calling a backend function
-├── hooks/                      # Shared state and API logic
-├── styles/
-│   └── global.css              # CSS variables and component styles
-└── index.cl.jac                # Client router
+│   ├── graphService.jac              # Hub — re-exports all graph symbols
+│   ├── appService.jac                # Twilio SMS, webhook, polling
+│   ├── profileService.jac            # User profile management
+│   ├── dataService.jac               # Phone matching utilities
+│   └── graph/
+│       ├── models.jac                # Nodes, edges, enums
+│       ├── ai.jac                    # by llm() functions + return types
+│       ├── seed.jac                  # Demo property + vendor seed
+│       ├── crud.jac                  # Read-only walkers
+│       ├── triage.jac                # Triage walker (classification + routing)
+│       ├── maintenance.jac           # Maintenance walker (full pipeline)
+│       ├── actions.jac               # approve_dispatch, resolve_ticket
+│       └── backboard.jac             # Backboard.io memory client
+├── index.cl.jac                      # Client app shell + header + sidebar
+├── incidents.cl.jac                  # Incidents page (card grid + AI flow detail)
+├── dashboard.cl.jac                  # Dashboard
+├── sms_inbox.cl.jac                  # SMS inbox
+├── settings.cl.jac                   # Settings page
+├── login.cl.jac                      # Login/signup
+├── shared.cl.jac                     # Shared UI components + helpers
+└── .env                              # API keys (not committed)
 ```
 
-## Getting Started
+## Testing the Pipeline
 
-```bash
-jac start main.jac
-```
+1. Register a tenant via the API with your real phone number
+2. Send an SMS from that phone to your Twilio number (e.g., "My sink is leaking")
+3. Watch the webhook trigger → triage → maintenance → ticket created
+4. Check the Incidents page — card shows real AI triage results
+5. Click the card → full AI pipeline flow visualization
 
-Then open your browser to the URL shown in the terminal.
+## Database (Dev)
 
-## Features
-
-- **User Authentication** — sign up and log in with username/password
-- **Protected Routes** — dashboard requires a valid session via `AuthGuard`
-- **Backend Function Demo** — `GreetCard` calls a `def:priv` function on the server
-- **Clean Dark Theme** — black and golden orange design ready to customise
-
-## How to Extend
-
-### Add a server function
-
-Open `services/appService.jac` and add a new `def:priv` function:
-
-```jac
-def:priv my_function(param: str) -> dict {
-    return {"result": "Hello, " + param};
-}
-```
-
-### Call it from the frontend
-
-Use `sv import` in any `.cl.jac` file:
-
-```jac
-sv import from ..services.appService { my_function }
-
-result = await my_function("world");
-```
-
-### Add a new page
-
-1. Create `pages/MyPage.cl.jac` with `def:pub page() -> JsxElement { ... }`
-2. Add a route in `index.cl.jac`
-
-## Architecture
-
-- **`services/*.jac`** — server-side logic; `def:priv` functions require a valid JWT
-- **`pages/*.cl.jac`** — full-page React components, one per route
-- **`components/*.cl.jac`** — reusable UI pieces
-- **`hooks/*.cl.jac`** — shared state and API logic consumed by components
-- **`styles/global.css`** — design tokens (`--primary`, `--background`, etc.) and utility classes
-- **`main.jac`** — registers server symbols and mounts the client app
-
-
-# Database
 ```bash
 sudo apt install sqlitebrowser
 sqlitebrowser .jac/data/main.db
