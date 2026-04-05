@@ -9,6 +9,7 @@ import from services.graph.ai {
     diagnose_issue, select_vendor, assess_risk,
     draft_tenant_reply, draft_owner_alert
 }
+import from services.foursquare { fetch_vendors_near }
 
 
 walker handle_maintenance {
@@ -18,8 +19,12 @@ walker handle_maintenance {
     has property_name: str = "";
 
     can process with Unit entry {
+        t_total = datetime.now();
+
         # 1. Diagnose the issue via LLM
+        t0 = datetime.now();
         diagnosis = diagnose_issue(self.message);
+        diagnose_ms = int((datetime.now() - t0).total_seconds() * 1000);
 
         # 2. Count past tickets in this category (graph reasoning)
         past_tickets = [->: HasTicket :->];
@@ -55,7 +60,40 @@ walker handle_maintenance {
             }
         }
 
+        # 4b. Enrich vendor list with live Foursquare data
+        near = "";
+        if prop {
+            if prop.city { near = prop.city + (", " + prop.state if prop.state else ""); }
+            elif prop.address { near = prop.address; }
+        }
+        fs_vendors = fetch_vendors_near(diagnosis.category, near);
+        if prop and fs_vendors {
+            existing_names = [v.name for v in vendor_list];
+            for fv in fs_vendors {
+                if fv["name"] not in existing_names {
+                    new_v = Vendor(
+                        name=fv["name"],
+                        category=fv["category"],
+                        phone=fv["phone"],
+                        rating=fv["rating"],
+                        avg_cost=fv["avg_cost"],
+                        available=True
+                    );
+                    prop +>: Services :+> new_v;
+                    vendor_list.append(new_v);
+                    vendors_info += (
+                        fv["name"] + " | " + fv["category"]
+                        + " | Rating: " + str(fv["rating"])
+                        + " | Avg $" + str(fv["avg_cost"])
+                        + " | Available: True\n"
+                    );
+                    existing_names.append(fv["name"]);
+                }
+            }
+        }
+
         # 5. Assess risk via LLM
+        t0 = datetime.now();
         risk_ctx = (
             "Unit " + here.number + " at " + self.property_name + "\n"
             + "Category: " + diagnosis.category + "\n"
@@ -65,8 +103,10 @@ walker handle_maintenance {
             + "Diagnosis: " + diagnosis.summary
         );
         risk = assess_risk(risk_ctx);
+        risk_ms = int((datetime.now() - t0).total_seconds() * 1000);
 
         # 6. Select best vendor via LLM
+        t0 = datetime.now();
         best_vendor: any = None;
         if vendors_info {
             selected_name = select_vendor(
@@ -83,8 +123,10 @@ walker handle_maintenance {
                 best_vendor = vendor_list[0];
             }
         }
+        vendor_ms = int((datetime.now() - t0).total_seconds() * 1000);
 
         # 7. Draft communications via LLM
+        t0 = datetime.now();
         comm_ctx = (
             "Property: " + self.property_name + ", Unit: " + here.number + "\n"
             + "Tenant: " + self.tenant_name + "\n"
@@ -98,6 +140,8 @@ walker handle_maintenance {
 
         tenant_sms = draft_tenant_reply(comm_ctx);
         owner_sms = draft_owner_alert(comm_ctx);
+        comms_ms = int((datetime.now() - t0).total_seconds() * 1000);
+        total_ms = int((datetime.now() - t_total).total_seconds() * 1000);
 
         # 8. Create Ticket node on this unit
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S");
@@ -138,7 +182,14 @@ walker handle_maintenance {
             "tenant_reply": tenant_sms,
             "owner_alert": owner_sms,
             "status": "pending_approval",
-            "created_at": now
+            "created_at": now,
+            "timings": {
+                "diagnose_ms": diagnose_ms,
+                "risk_ms": risk_ms,
+                "vendor_ms": vendor_ms,
+                "comms_ms": comms_ms,
+                "total_ms": total_ms
+            }
         };
     }
 }
