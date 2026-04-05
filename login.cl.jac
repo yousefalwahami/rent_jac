@@ -137,7 +137,7 @@ def:pub LoginView(props: dict) -> JsxElement {
                         {("Don't have an account? " if mode == "login" else "Already have an account? ")}
                         <button
                             onClick={lambda -> None { mode = ("register" if mode == "login" else "login"); error = ""; }}
-                            className="font-semibold text-slate-900 hover:underline"
+                            className="font-semibold text-slate-900 hover:underline cursor-pointer"
                         >
                             {("Sign up" if mode == "login" else "Sign in")}
                         </button>

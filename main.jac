@@ -10,7 +10,8 @@ import from services.graphService {
     Property, Unit, Lease, Tenant, Ticket, Vendor,
     HasUnit, HasLease, HasTenant, HasTicket, Services, AssignedTo,
     seed_graph, list_properties, list_units, list_tickets, list_vendors,
-    triage, handle_maintenance, approve_dispatch, resolve_ticket
+    triage, handle_maintenance, approve_dispatch, resolve_ticket,
+    register_tenant
 }
 cl import ".styles.global.css";
 cl import from .index { ClientApp }
