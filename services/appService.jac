@@ -1,6 +1,7 @@
 import from os { getenv }
 import from fastapi { Request }
 import from dotenv { load_dotenv }
+import from services.graphService { triage }
 
 glob _env: any = load_dotenv();
 
@@ -22,6 +23,21 @@ def:pub get_twilio_number() -> dict {
 def:pub set_alert_number(phone_number: str) -> dict {
     _alert_number = phone_number;
     return {"success": True, "alert_number": phone_number};
+}
+
+
+def:pub send_sms(recipient: str, body: str) -> dict {
+    account_sid = getenv("TWILIO_ACCOUNT_SID");
+    auth_token = getenv("TWILIO_AUTH_TOKEN");
+    from_number = getenv("TWILIO_PHONE_NUMBER");
+    if not (account_sid and auth_token and from_number) {
+        return {"success": False, "error": "Twilio credentials not configured"};
+    }
+    import from twilio.rest { Client }
+    client = Client(account_sid, auth_token);
+    msg = client.messages.create(body=body, from_=from_number, to=recipient);
+    print("SMS sent to " + recipient + " — SID: " + str(msg.sid));
+    return {"success": True, "sid": str(msg.sid)};
 }
 
 
@@ -80,7 +96,34 @@ async def:pub twilio_webhook(request: Request) -> dict {
 
     print("Incoming Twilio SMS from " + from_number + ": " + body);
 
-    if _alert_number {
+    # ── Run the AI triage pipeline ───────────────────────────
+    triage_result: any = None;
+    try {
+        result = root spawn triage(message=body, sender_phone=from_number);
+        if result.reports {
+            triage_result = result.reports[0];
+            print("Triage result: " + str(triage_result));
+
+            # If maintenance was processed, send SMS notifications
+            if triage_result.get("event_type") == "maintenance" and triage_result.get("result") {
+                maint = triage_result["result"];
+
+                # Send tenant acknowledgment
+                if maint.get("tenant_reply") and maint.get("tenant_phone") {
+                    send_sms(maint["tenant_phone"], maint["tenant_reply"]);
+                }
+
+                # Send owner alert
+                if _alert_number and maint.get("owner_alert") {
+                    send_sms(_alert_number, maint["owner_alert"]);
+                }
+            }
+        }
+    } except Exception as e {
+        print("Triage pipeline error: " + str(e));
+    }
+
+    if _alert_number and not triage_result {
         try {
             account_sid = getenv("TWILIO_ACCOUNT_SID");
             auth_token = getenv("TWILIO_AUTH_TOKEN");
@@ -103,5 +146,6 @@ async def:pub twilio_webhook(request: Request) -> dict {
         "success": True,
         "from": from_number,
         "body": body,
+        "triage": triage_result,
     };
 }

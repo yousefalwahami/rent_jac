@@ -33,6 +33,9 @@ base_route_app = "app"
 plugins = ["tailwindcss()"]
 lib_imports = ["import tailwindcss from '@tailwindcss/vite'"]
 
+[plugins.byllm.model]
+default_model = "gpt-4o-mini"
+
 [jacpack]
 name = "jac_test"
 description = "Jac IDE snapshot for jac_test"
