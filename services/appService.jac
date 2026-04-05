@@ -282,7 +282,7 @@ walker fetch_properties {
         for p in [here -->][?:Property] {
             units = [p -->][?:Unit];
             result.append({
-                "id": str(p.__jac__.id),
+                "id": jid(p),
                 "name": p.name,
                 "address": p.address,
                 "city": p.city,
@@ -303,11 +303,11 @@ walker fetch_tenants {
                 for l in [u -->][?:Lease] {
                     for t in [l -->][?:Tenant] {
                         result.append({
-                            "id": str(t.__jac__.id),
+                            "id": jid(t),
                             "full_name": t.name,
                             "phone_number": t.phone,
                             "unit_number": u.number,
-                            "property_id": str(p.__jac__.id),
+                            "property_id": jid(p),
                             "property_name": p.name,
                             "rent": str(l.rent_amount),
                             "lease_end": l.end_date

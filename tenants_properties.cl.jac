@@ -89,14 +89,9 @@ def:pub TenantsPropertiesView() -> JsxElement {
 
     async def delete_property(p_id: str) -> None {
         if window.confirm("Delete this property and all its tenants?") {
-            all_p = ls_load("rentora_properties");
-            properties = [p for p in all_p if p["id"] != p_id];
-            ls_save("rentora_properties", properties);
-            all_t = ls_load("rentora_tenants");
-            tenants = [t for t in all_t if t["property_id"] != p_id];
-            ls_save("rentora_tenants", tenants);
-            show_toast("Property deleted");
             try { await __doFuncFetch("delete_property_data", {"property_id": p_id}); } except Exception {}
+            show_toast("Property deleted");
+            await reload();
         }
     }
 
