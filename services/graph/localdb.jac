@@ -33,6 +33,12 @@ def _ensure_tables() -> None {
         "type TEXT, payload TEXT, ticket_id TEXT, "
         "read_flag INTEGER DEFAULT 0, timestamp TEXT)"
     );
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS incidents ("
+        "sid TEXT PRIMARY KEY, "
+        "from_number TEXT, body TEXT, msg_time TEXT, "
+        "triage_json TEXT, created_at TEXT, updated_at TEXT)"
+    );
     conn.commit();
     conn.close();
     _tables_ready = True;
@@ -209,5 +215,75 @@ def:pub check_db_health() -> dict {
         return {"ok": True, "backend": "sqlite", "path": _db_path, "tables": tables};
     } except Exception {
         return {"ok": False, "backend": "sqlite", "path": _db_path};
+    }
+}
+
+
+def:pub save_incident_record(sid: str, from_number: str, body: str, msg_time: str, triage_json: str) -> dict {
+    try {
+        _ensure_tables();
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S");
+        conn = connect(_db_path);
+        conn.execute(
+            "INSERT INTO incidents (sid, from_number, body, msg_time, triage_json, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?) "
+            "ON CONFLICT(sid) DO UPDATE SET triage_json=excluded.triage_json, updated_at=excluded.updated_at",
+            (sid, from_number, body, msg_time or ts, triage_json, ts, ts)
+        );
+        conn.commit();
+        conn.close();
+        return {"success": True};
+    } except Exception as e {
+        return {"success": False, "error": str(e)};
+    }
+}
+
+
+def:pub update_incident_status_record(sid: str, new_status: str) -> dict {
+    try {
+        _ensure_tables();
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S");
+        conn = connect(_db_path);
+        row = conn.execute("SELECT triage_json FROM incidents WHERE sid=?", (sid,)).fetchone();
+        if row and row[0] {
+            triage = loads(row[0]);
+            if triage.get("result") {
+                triage["result"]["status"] = new_status;
+            } else {
+                triage["status"] = new_status;
+            }
+            conn.execute("UPDATE incidents SET triage_json=?, updated_at=? WHERE sid=?",
+                (dumps(triage), ts, sid));
+            conn.commit();
+        }
+        conn.close();
+        return {"success": True};
+    } except Exception as e {
+        return {"success": False, "error": str(e)};
+    }
+}
+
+
+def:pub get_incident_records(limit_count: int = 100) -> list {
+    try {
+        _ensure_tables();
+        conn = connect(_db_path);
+        rows = conn.execute(
+            "SELECT sid, from_number, body, msg_time, triage_json FROM incidents ORDER BY created_at DESC LIMIT ?",
+            (limit_count,)
+        ).fetchall();
+        conn.close();
+        result = [];
+        for r in rows {
+            triage = None;
+            try { triage = loads(r[4]) if r[4] else None; } except Exception {}
+            result.append({
+                "sid": r[0], "from": r[1], "body": r[2],
+                "time": r[3], "triage": triage
+            });
+        }
+        return result;
+    } except Exception {
+        return [];
     }
 }

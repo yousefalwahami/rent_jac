@@ -29,7 +29,8 @@ import from services.graph.actions { approve_dispatch, resolve_ticket }
 
 import from services.graph.localdb {
     log_sms, log_walker_run, create_notification, get_notifications,
-    get_sms_history, db_insert, db_find, check_db_health
+    get_sms_history, db_insert, db_find, check_db_health,
+    save_incident_record, update_incident_status_record, get_incident_records
 }
 
 import from services.graph.backboard { bb_remember, bb_recall }

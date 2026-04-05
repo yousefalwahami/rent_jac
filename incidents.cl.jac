@@ -227,6 +227,7 @@ def:pub IncidentsView(props: dict) -> JsxElement {
     category_filter = props["category_filter"];
     set_category = props["set_category"];
     set_viewing_detail = props["set_viewing_detail"];
+    on_status_change = props["on_status_change"] if "on_status_change" in props else None;
 
     viewing_detail = props["viewing_detail"];
 
@@ -241,7 +242,7 @@ def:pub IncidentsView(props: dict) -> JsxElement {
 
     # If viewing detail, show full-screen AI flow
     if viewing_detail and selected {
-        return <AiFlowDetailView incident={selected} on_back={close_detail} />;
+        return <AiFlowDetailView incident={selected} on_back={close_detail} on_status_change={on_status_change} />;
     }
 
     # Otherwise show the SMS card grid
