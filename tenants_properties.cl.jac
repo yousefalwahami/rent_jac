@@ -185,7 +185,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
                                             <td className="px-6 py-4 font-medium text-slate-900">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-semibold shrink-0">
-                                                        {t["full_name"][0].upper() if t["full_name"] else "?"}
+                                                        {t["full_name"][0].toUpperCase() if t["full_name"] else "?"}
                                                     </div>
                                                     {t["full_name"]}
                                                 </div>

@@ -143,7 +143,7 @@ walker register_tenant {
         }
         units = [->: HasUnit :->];
         for u in units {
-            if u.number == self.unit_number {
+            if u.number.upper() == self.unit_number.upper() {
                 # Create lease + tenant
                 lease = Lease(
                     start_date=self.lease_start,
