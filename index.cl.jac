@@ -1,8 +1,6 @@
 import from "@jac/runtime" { __doFuncFetch, jacIsLoggedIn, jacLogout }
 cl import from .dashboard { dashboard_view }
 cl import from .incidents { IncidentsView }
-cl import from .ai_activity { ai_activity_view }
-cl import from .demo_mode { demo_mode_view }
 cl import from .settings { SettingsView }
 cl import from .sms_inbox { SmsInboxView }
 cl import from .login { LoginView }
@@ -12,16 +10,13 @@ def:pub ClientApp() -> JsxElement {
     has is_authenticated: bool = jacIsLoggedIn();
     has current_view: str = "Dashboard";
     has live_incidents: list = [];
-    has demo_incidents: list = sample_incidents();
     has selected_incident: IncidentRecord = None;
     has search: str = "";
     has urgency_filter: str = "All";
     has category_filter: str = "All";
-    has scenario: str = "Plumbing";
-    has incoming_text: str = "The sink in Unit 4B is leaking and water is getting on the floor.";
-    has demo_stage: int = 0;
     has loading_live: bool = False;
     has initial_load: bool = False;
+    has sidebar_collapsed: bool = False;
 
     if not initial_load {
         initial_load = True;
@@ -111,20 +106,22 @@ def:pub ClientApp() -> JsxElement {
     def content() -> JsxElement {
         if current_view == "Dashboard" { return dashboard_view(live_incidents, selected_incident, set_selected); }
         if current_view == "Incidents" { return <IncidentsView incidents={live_incidents} selected={selected_incident} set_selected={set_selected} search={search} set_search={lambda value: str -> None { search = value; }} urgency_filter={urgency_filter} set_urgency={lambda value: str -> None { urgency_filter = value; }} category_filter={category_filter} set_category={lambda value: str -> None { category_filter = value; }} />; }
-        if current_view == "AI Activity" { return ai_activity_view(live_incidents, selected_incident, set_selected); }
-        if current_view == "Demo Mode" { return demo_mode_view(demo_incidents, demo_incidents[0] if len(demo_incidents) > 0 else None, set_selected, scenario, lambda value: str -> None { scenario = value; }, incoming_text, lambda value: str -> None { incoming_text = value; }, demo_stage, lambda value: int -> None { demo_stage = value; }); }
         if current_view == "SMS Inbox" { return <SmsInboxView />; }
         return <SettingsView />;
     }
 
-    def sidebar_item(label: str, active: bool, on_click: any, meta: str) -> JsxElement {
+    def sidebar_item(label: str, icon: any, active: bool, on_click: any, meta: str) -> JsxElement {
         return (
             <button
                 onClick={on_click}
-                className={"flex w-full items-center justify-between rounded-sm px-3 py-2 text-[13px] transition-colors " + (active and "bg-slate-900 text-white font-medium shadow-sm" or "text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium")}
+                className={"flex w-full items-center rounded-sm px-3 py-2 text-[13px] transition-colors gap-3 " + (active and "bg-slate-900 text-white font-medium shadow-sm" or "text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium") + (sidebar_collapsed and " justify-center" or " justify-between")}
+                title={label if sidebar_collapsed else ""}
             >
-                <span>{label}</span>
-                {meta and (
+                <div className="flex items-center gap-3">
+                    <span className="shrink-0">{icon}</span>
+                    {not sidebar_collapsed and <span>{label}</span>}
+                </div>
+                {meta and not sidebar_collapsed and (
                     <span className={"text-[10px] uppercase font-mono tracking-widest " + (active and "text-slate-400" or "text-slate-400")}>
                         {meta}
                     </span>
@@ -133,51 +130,75 @@ def:pub ClientApp() -> JsxElement {
         );
     }
 
+    icon_dashboard = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>;
+    icon_incidents = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>;
+    icon_sms = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>;
+    icon_settings = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
+
+    title_text = current_view;
+    if current_view == "Incidents" and selected_incident {
+        person_name = selected_incident.tenant if selected_incident.tenant else "Unknown";
+        title_text = "Incidents / " + person_name;
+    }
+
     return (
         <div className="flex h-screen w-full bg-slate-50 text-slate-900 font-sans overflow-hidden font-inter selection:bg-indigo-100 selection:text-indigo-900">
             
-            <aside className="w-[260px] flex-shrink-0 border-r border-slate-200 bg-slate-50/50 flex flex-col justify-between">
-                <div className="px-4 py-5">
+            <aside className={"flex-shrink-0 border-r border-slate-200 bg-slate-50/50 flex flex-col justify-between transition-all duration-300 " + (sidebar_collapsed and "w-[72px]" or "w-[260px]")}>
+                <div className={"px-4 py-5" + (sidebar_collapsed and " flex flex-col items-center" or "")}>
                     
-                    <div className="flex items-center gap-3 px-2 mb-6 cursor-pointer group">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900 text-white text-sm font-semibold shadow-sm group-hover:bg-slate-800 transition-colors">
+                    <div className={"flex items-center gap-3 px-2 mb-6 cursor-pointer group " + (sidebar_collapsed and "justify-center px-0" or "")}>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900 text-white text-sm font-semibold shadow-sm group-hover:bg-slate-800 transition-colors shrink-0">
                             R
                         </div>
-                        <div>
-                            <h1 className="text-[14px] font-semibold tracking-tight text-slate-900">Rentora</h1>
-                            <p className="text-[12px] text-slate-500 line-clamp-1">Production Environment</p>
-                        </div>
+                        {not sidebar_collapsed and (
+                            <div>
+                                <h1 className="text-[14px] font-semibold tracking-tight text-slate-900">Rentora</h1>
+                                <p className="text-[12px] text-slate-500 line-clamp-1">Production Environment</p>
+                            </div>
+                        )}
                     </div>
 
                     
-                    <div className="space-y-1">
-                        {sidebar_item("Dashboard", current_view == "Dashboard", lambda -> None { current_view = "Dashboard"; }, "Live")}
-                        {sidebar_item("Incidents", current_view == "Incidents", lambda -> None { current_view = "Incidents"; }, str(len(live_incidents)))}
-                        {sidebar_item("AI Activity", current_view == "AI Activity", lambda -> None { current_view = "AI Activity"; }, "")}
-                        {sidebar_item("Demo Mode", current_view == "Demo Mode", lambda -> None { current_view = "Demo Mode"; }, "")}
-                        {sidebar_item("SMS Inbox", current_view == "SMS Inbox", lambda -> None { current_view = "SMS Inbox"; }, "Live")}
-                        {sidebar_item("Settings", current_view == "Settings", lambda -> None { current_view = "Settings"; }, "")}
+                    <div className="space-y-1 w-full">
+                        {sidebar_item("Dashboard", icon_dashboard, current_view == "Dashboard", lambda -> None { current_view = "Dashboard"; }, "Live")}
+                        {sidebar_item("Incidents", icon_incidents, current_view == "Incidents", lambda -> None { current_view = "Incidents"; }, str(len(live_incidents)))}
+                        {sidebar_item("SMS Inbox", icon_sms, current_view == "SMS Inbox", lambda -> None { current_view = "SMS Inbox"; }, "Live")}
+                        {sidebar_item("Settings", icon_settings, current_view == "Settings", lambda -> None { current_view = "Settings"; }, "")}
                     </div>
                 </div>
 
-                <div className="p-4 border-t border-slate-200/60">
-                    <div className="flex items-center justify-between gap-2 px-2 py-2">
-                        <div className="flex items-center gap-2 min-w-0">
+                <div className={"p-4 border-t border-slate-200/60" + (sidebar_collapsed and " flex flex-col items-center" or "")}>
+                    <div className={"flex items-center justify-between gap-2 py-2 " + (not sidebar_collapsed and "px-2" or "")}>
+                        <div className="flex items-center gap-2 min-w-0" title={user_name if user_name else user_email if user_email else "Account"}>
                             <div className="w-7 h-7 rounded-full bg-slate-900 flex items-center justify-center text-white text-xs font-semibold shrink-0 border border-slate-300">
                                 {(user_name[0].upper() if user_name else user_email[0].upper() if user_email else "?")}
                             </div>
-                            <div className="min-w-0">
-                                <p className="text-sm font-medium text-slate-900 truncate">{user_name if user_name else user_email if user_email else "Account"}</p>
-                                {user_name and user_email and <p className="text-xs text-slate-500 truncate">{user_email}</p>}
-                            </div>
+                            {not sidebar_collapsed and (
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium text-slate-900 truncate">{user_name if user_name else user_email if user_email else "Account"}</p>
+                                    {user_name and user_email and <p className="text-xs text-slate-500 truncate">{user_email}</p>}
+                                </div>
+                            )}
                         </div>
+                        {not sidebar_collapsed and (
+                            <button
+                                onClick={handle_logout}
+                                className="text-xs font-medium text-slate-500 hover:text-slate-900 px-2 py-1 rounded-md hover:bg-slate-100 transition shrink-0"
+                            >
+                                Sign out
+                            </button>
+                        )}
+                    </div>
+                    {sidebar_collapsed and (
                         <button
                             onClick={handle_logout}
-                            className="text-xs font-medium text-slate-500 hover:text-slate-900 px-2 py-1 rounded-md hover:bg-slate-100 transition shrink-0"
+                            title="Sign out"
+                            className="mt-2 text-xs font-medium text-slate-500 hover:text-slate-900 p-2 rounded-md hover:bg-slate-100 transition shrink-0 flex justify-center"
                         >
-                            Sign out
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                         </button>
-                    </div>
+                    )}
                 </div>
             </aside>
 
@@ -186,7 +207,14 @@ def:pub ClientApp() -> JsxElement {
                 
                 <header className="h-14 flex-shrink-0 border-b border-slate-200 flex items-center justify-between px-6 bg-white">
                     <div className="flex items-center gap-4">
-                        <h2 className="text-sm font-medium text-slate-900">{current_view}</h2>
+                        <button onClick={lambda -> None { sidebar_collapsed = not sidebar_collapsed; }} className="text-slate-500 hover:text-slate-900 focus:outline-none p-1 rounded-md hover:bg-slate-100 transition mr-2">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="3" y1="12" x2="21" y2="12"></line>
+                                <line x1="3" y1="6" x2="21" y2="6"></line>
+                                <line x1="3" y1="18" x2="21" y2="18"></line>
+                            </svg>
+                        </button>
+                        <h2 className="text-sm font-medium text-slate-900">{title_text}</h2>
                     </div>
                     
 
