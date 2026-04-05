@@ -50,15 +50,6 @@ def:pub ClientApp() -> JsxElement {
                 messages = [];
             }
 
-            # Refresh tenants from graph into localStorage for accurate phone matching
-            try {
-                tr = await __doFuncFetch("fetch_tenants", {});
-                fresh_tenants = None;
-                if tr and tr["tenants"] { fresh_tenants = tr["tenants"]; }
-                elif tr and tr["data"] and tr["data"]["result"] and tr["data"]["result"]["tenants"] { fresh_tenants = tr["data"]["result"]["tenants"]; }
-                if fresh_tenants { localStorage.setItem("rentora_tenants", JSON.stringify(fresh_tenants)); }
-            } except Exception {}
-
             # Client-side phone matching from localStorage tenants
             ls_tenants = [];
             try {

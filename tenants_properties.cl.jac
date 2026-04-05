@@ -76,7 +76,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
             }
         } else {
             p = {
-                "id": "P-" + str(Date.now()),
+                "id": "P-" + str(Date.now()) + "-" + str(len(all_p)),
                 "name": form_prop_name,
                 "address": form_prop_address,
                 "notes": form_prop_notes,
@@ -95,7 +95,9 @@ def:pub TenantsPropertiesView() -> JsxElement {
         form_prop_tags = "";
         edit_prop_id = "";
         reload();
-        try { root spawn add_property_node(name=saved_name, address=saved_address); } except Exception {}
+        try {
+            await __doFuncFetch("save_property_data", {"name": saved_name, "address": saved_address});
+        } except Exception {}
     }
 
     async def delete_property(p_id: str) -> None {
@@ -137,7 +139,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
             }
         } else {
             t = {
-                "id": "T-" + str(Date.now()),
+                "id": "T-" + str(Date.now()) + "-" + str(len(all_t)),
                 "full_name": form_tenant_name,
                 "phone_number": form_tenant_phone,
                 "email": form_tenant_email,
@@ -171,15 +173,13 @@ def:pub TenantsPropertiesView() -> JsxElement {
         try {
             rent_f = 0.0;
             try { rent_f = float(saved_rent); } except Exception {}
-            root spawn register_tenant(
-                tenant_name=saved_tenant_name,
-                tenant_phone=saved_tenant_phone,
-                unit_number=saved_unit,
-                rent_amount=rent_f,
-                lease_start="2025-01-01",
-                lease_end="2026-12-31",
-                property_name=saved_prop_name
-            );
+            await __doFuncFetch("save_tenant_data", {
+                "tenant_name": saved_tenant_name,
+                "tenant_phone": saved_tenant_phone,
+                "unit_number": saved_unit,
+                "rent_amount": rent_f,
+                "property_name": saved_prop_name
+            });
         } except Exception {}
     }
 
@@ -248,7 +248,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
                         </div>
                     )}
                     {properties.map(lambda p: any -> JsxElement {
-                        t_count = len([t for t in tenants if t["property_id"] == p["id"]]);
+                        t_count = len([t for t in tenants if "property_id" in t and "id" in p and t["property_id"] == p["id"]]);
                         return (
                             <div key={p["id"]} className={panel_classes() + " p-5 flex flex-col group relative hover:border-slate-300 transition"}>
                                 <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
@@ -294,26 +294,38 @@ def:pub TenantsPropertiesView() -> JsxElement {
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {tenants.map(lambda t: any -> JsxElement {
+                                    t_id = t["id"] if "id" in t else "";
+                                    t_name = t["full_name"] if "full_name" in t else (t["name"] if "name" in t else "Unknown");
+                                    t_initial = t_name[0].toUpperCase() if len(t_name) > 0 else "?";
+                                    t_phone = t["phone_number"] if "phone_number" in t else (t["phone"] if "phone" in t else "");
+                                    t_unit = t["unit_number"] if "unit_number" in t else (t["unit"] if "unit" in t else "");
+                                    t_prop_name = t["property_name"] if "property_name" in t else "—";
+                                    t_prop_id = t["property_id"] if "property_id" in t else "";
+                                    t_rent = t["rent"] if "rent" in t else (t["rent_amount"] if "rent_amount" in t else 0);
+                                    t_email = t["email"] if "email" in t else "";
+                                    t_notes = t["notes"] if "notes" in t else "";
+                                    t_tags = t["tags"] if "tags" in t else [];
+
                                     return (
-                                        <tr key={t["id"]} className="hover:bg-slate-50/50 group">
+                                        <tr key={t_id} className="hover:bg-slate-50/50 group">
                                             <td className="px-6 py-4 font-medium text-slate-900">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-semibold shrink-0">
-                                                        {t["full_name"][0].toUpperCase() if t["full_name"] else "?"}
+                                                        {t_initial}
                                                     </div>
-                                                    {t["full_name"]}
+                                                    {t_name}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 font-mono text-slate-500 text-xs">{t["phone_number"]}</td>
-                                            <td className="px-6 py-4"><span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-xs font-mono font-medium">{t["unit_number"]}</span></td>
-                                            <td className="px-6 py-4 text-slate-600 text-xs">{t["property_name"] if t["property_name"] else "—"}</td>
-                                            <td className="px-6 py-4 text-slate-600 text-xs">${t["rent"]}/mo</td>
+                                            <td className="px-6 py-4 font-mono text-slate-500 text-xs">{t_phone}</td>
+                                            <td className="px-6 py-4"><span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-xs font-mono font-medium">{t_unit}</span></td>
+                                            <td className="px-6 py-4 text-slate-600 text-xs">{t_prop_name}</td>
+                                            <td className="px-6 py-4 text-slate-600 text-xs">${t_rent}/mo</td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-1">
-                                                    <button onClick={lambda -> None { edit_tenant_id = t["id"]; form_tenant_name = t["full_name"]; form_tenant_phone = t["phone_number"]; form_tenant_email = (t["email"] if t["email"] else ""); form_tenant_unit = t["unit_number"]; form_tenant_prop_id = t["property_id"]; form_tenant_rent = str(t["rent"]); form_tenant_notes = (t["notes"] if t["notes"] else ""); form_tenant_tags = ",".join(t["tags"] if t["tags"] else []); show_tenant_modal = True; }} className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded opacity-0 group-hover:opacity-100 transition-opacity" title="Edit">
+                                                    <button onClick={lambda -> None { edit_tenant_id = t_id; form_tenant_name = t_name; form_tenant_phone = t_phone; form_tenant_email = t_email; form_tenant_unit = t_unit; form_tenant_prop_id = t_prop_id; form_tenant_rent = str(t_rent); form_tenant_notes = t_notes; form_tenant_tags = ",".join(t_tags); show_tenant_modal = True; }} className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded opacity-0 group-hover:opacity-100 transition-opacity" title="Edit">
                                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                                     </button>
-                                                    <button onClick={lambda -> None { delete_tenant(t["id"]); }} className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">
+                                                    <button onClick={lambda -> None { delete_tenant(t_id); }} className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity" title="Remove">
                                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                                     </button>
                                                 </div>
