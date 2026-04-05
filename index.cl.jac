@@ -20,6 +20,22 @@ def:pub ClientApp() -> JsxElement {
     has scenario: str = "Plumbing";
     has incoming_text: str = "The sink in Unit 4B is leaking and water is getting on the floor.";
     has demo_stage: int = 0;
+    has user_name: str = "";
+    has user_email: str = "";
+
+    async can with entry {
+        if is_authenticated {
+            try {
+                p = root spawn get_profile();
+                reports = p.reports if p else [];
+                data = reports[0] if reports else {};
+                user_name = data["name"] if (data and data["name"]) else "";
+                user_email = data["email"] if (data and data["email"]) else "";
+            } except Exception {
+                pass;
+            }
+        }
+    }
 
     if not is_authenticated {
         return <LoginView on_auth_success={lambda -> None { is_authenticated = True; }} />;
@@ -89,8 +105,13 @@ def:pub ClientApp() -> JsxElement {
                 <div className="p-4 border-t border-slate-200/60">
                     <div className="flex items-center justify-between gap-2 px-2 py-2">
                         <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-7 h-7 rounded-full bg-slate-200 shrink-0 border border-slate-300"></div>
-                            <p className="text-sm font-medium text-slate-900 truncate">Account</p>
+                            <div className="w-7 h-7 rounded-full bg-slate-900 flex items-center justify-center text-white text-xs font-semibold shrink-0 border border-slate-300">
+                                {(user_name[0].upper() if user_name else user_email[0].upper() if user_email else "?")}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-900 truncate">{user_name if user_name else user_email if user_email else "Account"}</p>
+                                {user_name and user_email and <p className="text-xs text-slate-500 truncate">{user_email}</p>}
+                            </div>
                         </div>
                         <button
                             onClick={handle_logout}
