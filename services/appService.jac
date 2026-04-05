@@ -5,7 +5,7 @@ import from dotenv { load_dotenv }
 import from twilio.rest { Client }
 import from services.graph.models { Property, Unit, Lease, Tenant }
 import from datetime { datetime }
-import from services.graphService { triage, list_properties, list_tenants, add_property_node, register_tenant, delete_property_node, delete_tenant_node, approve_dispatch }
+import from services.graphService { triage, handle_maintenance, list_properties, list_tenants, add_property_node, register_tenant, delete_property_node, delete_tenant_node, approve_dispatch }
 import from logging { getLogger }
 import from services.graph.localdb { log_sms, log_walker_run, create_notification }
 
@@ -286,6 +286,48 @@ walker run_triage_for_message {
             root spawn triage(message=self.body, sender_phone=self.from_number);
             # triage's report() propagates automatically into this walker's reports
         } except Exception as e {
+            report {"success": False, "error": str(e)};
+        }
+    }
+}
+
+
+walker run_maintenance_direct {
+    has body: str = "";
+    has from_number: str = "";
+
+    can process with Root entry {
+        try {
+            found = False;
+            for p in [here -->][?:Property] {
+                if found { break; }
+                for u in [p -->][?:Unit] {
+                    if found { break; }
+                    for l in [u -->][?:Lease] {
+                        if found { break; }
+                        for t in [l -->][?:Tenant] {
+                            if t.phone == self.from_number {
+                                found = True;
+                                print("[run_maintenance_direct] matched tenant=" + t.name + " unit=" + u.number + " property=" + p.name);
+                                # Inner spawn: handle_maintenance's report propagates into this walker's reports
+                                u spawn handle_maintenance(
+                                    message=self.body,
+                                    tenant_name=t.name,
+                                    tenant_phone=t.phone,
+                                    property_name=p.name
+                                );
+                                disengage;
+                            }
+                        }
+                    }
+                }
+            }
+            if not found {
+                print("[run_maintenance_direct] tenant not found for phone=" + self.from_number);
+                report {"success": False, "error": "Tenant not found for " + self.from_number};
+            }
+        } except Exception as e {
+            print("[run_maintenance_direct] error: " + str(e));
             report {"success": False, "error": str(e)};
         }
     }

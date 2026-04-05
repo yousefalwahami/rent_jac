@@ -97,12 +97,29 @@ def:pub ClientApp() -> JsxElement {
             if len(needs_triage) > 0 {
                 for msg in needs_triage {
                     try {
-                        tr = await __doWalkerFetch("run_triage_for_message", "", {"body": str(msg["body"]), "from_number": str(msg["from"]), "msg_sid": str(msg["sid"]) if msg["sid"] else ""});
-                        console.log("[run_triage] reports=", tr["reports"]);
+                        sid = str(msg["sid"]) if msg["sid"] else "";
+                        tr = await __doWalkerFetch("run_maintenance_direct", "", {"body": str(msg["body"]), "from_number": str(msg["from"])});
+                        console.log("[run_maintenance_direct] reports=", tr["reports"]);
                         triage_val = None;
-                        if tr and tr["reports"] and tr["reports"][0] { triage_val = tr["reports"][0]; }
+                        if tr and tr["reports"] and tr["reports"][0] {
+                            raw = tr["reports"][0];
+                            if raw["ticket_id"] {
+                                # Wrap raw maintenance result in triage envelope so rest of client code works unchanged
+                                triage_val = {
+                                    "status": "processed",
+                                    "event_type": "maintenance",
+                                    "tenant": raw["tenant"],
+                                    "property": raw["property"],
+                                    "unit": raw["unit"],
+                                    "result": raw,
+                                    "timings": raw["timings"] if "timings" in raw else {}
+                                };
+                            } elif not raw["success"] {
+                                console.log("[run_maintenance_direct] not found:", raw["error"]);
+                            }
+                        }
                         if triage_val { msg["triage"] = triage_val; }
-                        if triage_val and msg["sid"] { _triage_cache[str(msg["sid"])] = triage_val; }
+                        if triage_val and sid { _triage_cache[sid] = triage_val; }
                     } except Exception {}
                 }
             }
