@@ -1,12 +1,6 @@
 import from "@jac/runtime" { __doFuncFetch }
 cl import from shared { panel_classes }
 
-def _res(raw: any, key: str) -> any {
-    if raw and raw[key] { return raw[key]; }
-    if raw and raw["data"] and raw["data"]["result"] and raw["data"]["result"][key] { return raw["data"]["result"][key]; }
-    return None;
-}
-
 def:pub TenantsPropertiesView() -> JsxElement {
     has properties: list = [];
     has tenants: list = [];
@@ -28,20 +22,22 @@ def:pub TenantsPropertiesView() -> JsxElement {
 
     async def reload() -> None {
         loading = True;
-        error_msg = "";
         try {
             pr = await __doFuncFetch("fetch_properties", {});
-            props_raw = _res(pr, "properties");
-            properties = props_raw if props_raw else [];
+            props = [];
+            if pr and pr["properties"] { props = pr["properties"]; }
+            elif pr and pr["data"] and pr["data"]["result"] and pr["data"]["result"]["properties"] { props = pr["data"]["result"]["properties"]; }
+            properties = props;
 
             tr = await __doFuncFetch("fetch_tenants", {});
-            ten_raw = _res(tr, "tenants");
-            tenants = ten_raw if ten_raw else [];
+            tens = [];
+            if tr and tr["tenants"] { tens = tr["tenants"]; }
+            elif tr and tr["data"] and tr["data"]["result"] and tr["data"]["result"]["tenants"] { tens = tr["data"]["result"]["tenants"]; }
+            tenants = tens;
 
-            # Mirror to localStorage so triage phone matching works
             localStorage.setItem("rentora_tenants", JSON.stringify(tenants));
         } except Exception as e {
-            error_msg = "Failed to load data: " + str(e);
+            error_msg = "Failed to load: " + str(e);
         }
         loading = False;
     }
@@ -52,24 +48,15 @@ def:pub TenantsPropertiesView() -> JsxElement {
     }
 
     async def save_property() -> None {
-        if not form_prop_name {
-            error_msg = "Property name is required.";
-            return;
-        }
+        if not form_prop_name { error_msg = "Property name is required."; return; }
         error_msg = "";
         loading = True;
         try {
-            r = await __doFuncFetch("save_property_data", {"name": form_prop_name, "address": form_prop_address});
-            res = _res(r, "status") or (r["status"] if r and r["status"] else None);
-            if res == "error" {
-                msg = _res(r, "message") or (r["message"] if r and r["message"] else "Unknown error");
-                error_msg = str(msg);
-            } else {
-                show_prop_modal = False;
-                form_prop_name = "";
-                form_prop_address = "";
-                await reload();
-            }
+            await __doFuncFetch("save_property_data", {"name": form_prop_name, "address": form_prop_address});
+            show_prop_modal = False;
+            form_prop_name = "";
+            form_prop_address = "";
+            await reload();
         } except Exception as e {
             error_msg = "Failed to add property: " + str(e);
         }
@@ -101,36 +88,27 @@ def:pub TenantsPropertiesView() -> JsxElement {
         }
         prop_name = "";
         for p in properties {
-            if p["id"] == form_tenant_prop_id {
-                prop_name = p["name"];
-                break;
-            }
+            if p["id"] == form_tenant_prop_id { prop_name = p["name"]; break; }
         }
         rent_f = 0.0;
         try { rent_f = float(form_tenant_rent); } except Exception {}
         error_msg = "";
         loading = True;
         try {
-            r = await __doFuncFetch("save_tenant_data", {
+            await __doFuncFetch("save_tenant_data", {
                 "tenant_name": form_tenant_name,
                 "tenant_phone": form_tenant_phone,
                 "unit_number": form_tenant_unit,
                 "rent_amount": rent_f,
                 "property_name": prop_name
             });
-            status_val = (r["status"] if r and r["status"] else None) or _res(r, "status");
-            if status_val == "error" {
-                msg_val = (r["message"] if r and r["message"] else "") or _res(r, "message") or "Unknown error";
-                error_msg = str(msg_val);
-            } else {
-                show_tenant_modal = False;
-                form_tenant_name = "";
-                form_tenant_phone = "";
-                form_tenant_unit = "";
-                form_tenant_prop_id = "";
-                form_tenant_rent = "1200";
-                await reload();
-            }
+            show_tenant_modal = False;
+            form_tenant_name = "";
+            form_tenant_phone = "";
+            form_tenant_unit = "";
+            form_tenant_prop_id = "";
+            form_tenant_rent = "1200";
+            await reload();
         } except Exception as e {
             error_msg = "Failed to add tenant: " + str(e);
         }
