@@ -160,7 +160,9 @@ def:pub WalkerDetailPanel(inc_node: dict) -> JsxElement {
 }
 
 # ── SMS Card for the grid ─────────────────────────────────────
-def:pub SmsCard(incident: IncidentRecord, on_click: any) -> JsxElement {
+def:pub SmsCard(props: dict) -> JsxElement {
+    incident = props["incident"];
+    on_click = props["on_click"];
     cat_color = category_dot(incident.category);
 
     urgency_col = "bg-slate-100 text-slate-600";
@@ -213,7 +215,9 @@ def:pub SmsCard(incident: IncidentRecord, on_click: any) -> JsxElement {
 }
 
 # ── Full-screen AI Flow detail view ─────────────────────────────────
-def:pub AiFlowDetailView(incident: IncidentRecord, on_back: any) -> JsxElement {
+def:pub AiFlowDetailView(props: dict) -> JsxElement {
+    incident = props["incident"];
+    on_back = props["on_back"];
     has selected_node: str = "n1";
 
     def select_node(node_id: str) -> None {
