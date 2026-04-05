@@ -5,7 +5,7 @@ import from dotenv { load_dotenv }
 import from twilio.rest { Client }
 import from services.graph.models { Property, Unit, Lease, Tenant }
 import from datetime { datetime }
-import from services.graphService { triage, list_properties, list_tenants, add_property_node, register_tenant, delete_property_node, delete_tenant_node }
+import from services.graphService { triage, list_properties, list_tenants, add_property_node, register_tenant, delete_property_node, delete_tenant_node, approve_dispatch }
 import from logging { getLogger }
 import from services.graph.localdb { log_sms, log_walker_run, create_notification }
 
@@ -16,6 +16,8 @@ glob _twilio_log: any = getLogger("twilio.http_client").setLevel(40);
 glob messages: list = [];
 # Map from Twilio SID → triage result, so API-fetched messages can be enriched
 glob _triage_by_sid: dict = {};
+# Most recent pending maintenance ticket — used for YES/NO landlord approval via SMS
+glob _pending_ticket: dict = {};
 
 def:pub get_messages() -> dict {
     try {
@@ -147,14 +149,52 @@ def:pub send_test_sms(to_number: str = "", message: str = "Jac/Twilio webhook te
 }
 
 async def:pub twilio_webhook(request: Request) -> dict {
-    
-    
-
     form = await request.form();
     from_number = str(form.get("From") or "unknown");
     body = str(form.get("Body") or "");
     msg_sid = str(form.get("MessageSid") or "");
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S");
+
+    print("Incoming Twilio SMS from " + from_number + ": " + body);
+
+    # Log inbound SMS
+    twilio_num = getenv("TWILIO_PHONE_NUMBER") or "";
+    log_sms(from_number, twilio_num, body, "inbound", msg_sid);
+
+    # ── Landlord YES/NO approval flow ────────────────────────
+    alert_num = getenv("TWILIO_TARGET_PHONE_NUMBER") or _alert_number;
+    if from_number == alert_num and _pending_ticket and _pending_ticket.get("ticket_id") {
+        cmd = body.strip().upper();
+        if cmd in ["YES", "Y", "APPROVE", "CONFIRMED"] {
+            ticket_id = _pending_ticket["ticket_id"];
+            tenant_phone = _pending_ticket.get("tenant_phone", "");
+            vendor = _pending_ticket.get("vendor", "");
+            try {
+                root spawn approve_dispatch(ticket_id=ticket_id);
+                print("Ticket " + ticket_id + " approved by landlord");
+            } except Exception as e {
+                print("approve_dispatch error: " + str(e));
+            }
+            # Confirm to landlord
+            send_sms(alert_num, "Approved. Dispatching " + vendor + " for ticket " + ticket_id + ".");
+            # Notify tenant
+            if tenant_phone {
+                send_sms(tenant_phone, "Update: Your repair request has been approved and a vendor has been dispatched. We will follow up shortly.");
+            }
+            _pending_ticket = {};
+            return {"success": True, "action": "approved", "ticket_id": ticket_id};
+        } elif cmd in ["NO", "N", "REJECT", "DECLINE"] {
+            ticket_id = _pending_ticket["ticket_id"];
+            tenant_phone = _pending_ticket.get("tenant_phone", "");
+            send_sms(alert_num, "Rejected ticket " + ticket_id + ". No vendor dispatched.");
+            if tenant_phone {
+                send_sms(tenant_phone, "Update: Your repair request is under review. We will be in touch shortly.");
+            }
+            _pending_ticket = {};
+            return {"success": True, "action": "rejected", "ticket_id": ticket_id};
+        }
+        # If not a YES/NO, fall through to normal triage
+    }
 
     msg_entry = {
         "from": from_number,
@@ -162,12 +202,6 @@ async def:pub twilio_webhook(request: Request) -> dict {
         "time": timestamp,
         "triage": None,
     };
-
-    print("Incoming Twilio SMS from " + from_number + ": " + body);
-
-    # Log inbound SMS to MongoDB
-    twilio_num = getenv("TWILIO_PHONE_NUMBER") or "";
-    log_sms(from_number, twilio_num, body, "inbound", msg_sid);
 
     # ── Run the AI triage pipeline ───────────────────────────
     triage_result: any = None;
@@ -181,27 +215,33 @@ async def:pub twilio_webhook(request: Request) -> dict {
             }
             print("Triage result: " + str(triage_result));
 
-            # Log walker run to MongoDB
             log_walker_run("triage", triage_result.get("unit", ""), {"message": body, "phone": from_number}, triage_result);
 
             # If maintenance was processed, send SMS notifications
             if triage_result.get("event_type") == "maintenance" and triage_result.get("result") {
                 maint = triage_result["result"];
 
-                # Log maintenance walker run
                 log_walker_run("handle_maintenance", triage_result.get("unit", ""), {"message": body}, maint);
-
-                # Create approval notification
                 create_notification("approval_required", maint, maint.get("ticket_id", ""));
+
+                # Store for landlord YES/NO reply
+                _pending_ticket = {
+                    "ticket_id": maint.get("ticket_id", ""),
+                    "tenant_phone": maint.get("tenant_phone", ""),
+                    "vendor": maint.get("vendor", ""),
+                    "unit": triage_result.get("unit", ""),
+                    "property": triage_result.get("property", "")
+                };
 
                 # Send tenant acknowledgment
                 if maint.get("tenant_reply") and maint.get("tenant_phone") {
                     send_sms(maint["tenant_phone"], maint["tenant_reply"]);
                 }
 
-                # Send owner alert
-                if _alert_number and maint.get("owner_alert") {
-                    send_sms(_alert_number, maint["owner_alert"]);
+                # Send owner alert with approval instructions
+                if alert_num and maint.get("owner_alert") {
+                    owner_msg = maint["owner_alert"] + " — Reply YES to approve or NO to reject.";
+                    send_sms(alert_num, owner_msg);
                 }
             }
         }
@@ -211,7 +251,7 @@ async def:pub twilio_webhook(request: Request) -> dict {
 
     messages.insert(0, msg_entry);
 
-    if _alert_number and not triage_result {
+    if alert_num and not triage_result {
         try {
             account_sid = getenv("TWILIO_ACCOUNT_SID");
             auth_token = getenv("TWILIO_AUTH_TOKEN");
@@ -219,11 +259,11 @@ async def:pub twilio_webhook(request: Request) -> dict {
             if account_sid and auth_token and from_twilio {
                 client = Client(account_sid, auth_token);
                 client.messages.create(
-                    body="New request from " + from_number + ": " + body,
+                    body="New message from " + from_number + ": " + body,
                     from_=from_twilio,
-                    to=_alert_number,
+                    to=alert_num,
                 );
-                print("Alert forwarded to " + _alert_number);
+                print("Alert forwarded to " + alert_num);
             }
         } except Exception as e {
             print("Failed to forward alert: " + str(e));
@@ -238,32 +278,31 @@ async def:pub twilio_webhook(request: Request) -> dict {
     };
 }
 
-def:pub run_triage_for_message(body: str, from_number: str, msg_sid: str = "") -> dict {
-    try {
-        result = root spawn triage(message=body, sender_phone=from_number);
-        if result.reports {
-            triage_result = result.reports[0];
-            # Only cache matched results — unmatched stay uncached so they retry after tenant registration
-            if msg_sid and not triage_result.get("unmatched", False) {
-                _triage_by_sid[msg_sid] = triage_result;
-            }
-            return {"success": True, "triage": triage_result};
+walker run_triage_for_message {
+    has body: str = "";
+    has from_number: str = "";
+    has msg_sid: str = "";
+
+    can process with Root entry {
+        try {
+            root spawn triage(message=self.body, sender_phone=self.from_number);
+            # triage's report() propagates automatically into this walker's reports
+        } except Exception as e {
+            report {"success": False, "error": str(e)};
         }
-        return {"success": False, "error": "No triage result"};
-    } except Exception as e {
-        return {"success": False, "error": str(e)};
     }
 }
 
 
 walker seed_if_empty {
     can run with Root entry {
-        check = root spawn list_properties();
-        existing = check.reports[0] if (check and check.reports) else [];
+        # Use direct graph traversal — avoids inner-spawn report propagation bug
+        existing = [here -->][?:Property];
         if existing and len(existing) > 0 {
             report {"status": "already_seeded", "count": len(existing)};
             disengage;
         }
+        #*
         root spawn add_property_node(name="Harbor Point Apts", address="221 Lakeview Dr", unit_numbers=["1A", "2B", "3C"]);
         root spawn add_property_node(name="Maple Street House", address="845 Maple St", unit_numbers=["Unit 1", "Unit 2"]);
         root spawn add_property_node(name="Oak View Complex", address="560 Oak Ave", unit_numbers=["101", "102", "201"]);
@@ -271,6 +310,7 @@ walker seed_if_empty {
         root spawn register_tenant(tenant_name="Sarah Johnson", tenant_phone="+15551001002", unit_number="2B", rent_amount=1600.0, lease_start="2025-01-01", lease_end="2026-12-31", property_name="Harbor Point Apts");
         root spawn register_tenant(tenant_name="Mike Lee", tenant_phone="+15551001003", unit_number="Unit 1", rent_amount=1200.0, lease_start="2025-01-01", lease_end="2026-12-31", property_name="Maple Street House");
         root spawn register_tenant(tenant_name="Emily Chen", tenant_phone="+15551001004", unit_number="101", rent_amount=950.0, lease_start="2025-01-01", lease_end="2026-12-31", property_name="Oak View Complex");
+        *#
         report {"status": "seeded", "properties": 3, "tenants": 4};
     }
 }
@@ -290,7 +330,7 @@ walker fetch_properties {
                 "unit_count": len(units)
             });
         }
-        report result;
+        report {"properties": result};
     }
 }
 
@@ -316,7 +356,7 @@ walker fetch_tenants {
                 }
             }
         }
-        report result;
+        report {"tenants": result};
     }
 }
 
@@ -334,7 +374,7 @@ walker save_property_data {
         if result and result.reports {
             report result.reports[0];
         } else {
-            report {"status": "error", "message": "No result from walker"};
+            report {"status": "error", "message": "No result"};
         }
     }
 }
@@ -364,7 +404,7 @@ walker save_tenant_data {
         if result and result.reports {
             report result.reports[0];
         } else {
-            report {"status": "error", "message": "No result from walker"};
+            report {"status": "error", "message": "No result"};
         }
     }
 }
