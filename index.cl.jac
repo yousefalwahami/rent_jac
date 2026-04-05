@@ -31,6 +31,10 @@ def:pub ClientApp() -> JsxElement {
     }
     
     async def load_live_data() -> None {
+        if not jacIsLoggedIn() {
+            loading_live = False;
+            return;
+        }
         loading_live = True;
         try {
             raw_res = await __doFuncFetch("get_messages", {});
@@ -103,28 +107,7 @@ def:pub ClientApp() -> JsxElement {
                         inc_confidence = "90%";
                     }
 
-                    inc = create_incident_record(
-                        "INC-" + id_val,
-                        str(msg["time"]),
-                        str(msg["body"]),
-                        str(msg["from"]),
-                        inc_tenant,
-                        inc_property,
-                        inc_unit,
-                        inc_category,
-                        inc_urgency,
-                        inc_status,
-                        inc_confidence,
-                        inc_summary,
-                        inc_owner_note,
-                        inc_property_code
-
-                    inc = create_incident_record(
-                        "INC-" + id_val,
-                        str(msg["time"]),
-                        str(msg["body"]),
-                        str(msg["from"]),
-                    );
+                    inc = create_incident_record("INC-" + id_val, str(msg["time"]), str(msg["body"]), str(msg["from"]), inc_tenant, inc_property, inc_unit, inc_category, inc_urgency, inc_status, inc_confidence, inc_summary, inc_owner_note, inc_property_code);
                     inc.recommended_action = inc_recommended;
                     inc.tenant_reply = inc_tenant_reply;
                     inc.assignee = inc_assignee;
