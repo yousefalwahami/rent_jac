@@ -1,5 +1,6 @@
 """Triage walker: classifies inbound events and routes to handlers."""
 
+import from datetime { datetime }
 import from services.graph.models {
     Property, Unit, Lease, Tenant,
     HasUnit, HasLease, HasTenant
@@ -45,7 +46,9 @@ walker triage {
         if not self.ctx_found and here.phone == self.sender_phone {
             self.ctx_found = True;
 
+            t_classify = datetime.now();
             classification = classify_event(self.message);
+            classify_ms = int((datetime.now() - t_classify).total_seconds() * 1000);
 
             if classification == EventType.MAINTENANCE {
                 result = self.ctx_unit_ref spawn handle_maintenance(
@@ -54,13 +57,21 @@ walker triage {
                     tenant_phone=here.phone,
                     property_name=self.ctx_property_name
                 );
+                maint = result.reports[0] if result.reports else None;
+                if maint and "timings" in maint {
+                    maint["timings"]["entity_ms"] = 1;
+                    maint["timings"]["classify_ms"] = classify_ms;
+                    maint["timings"]["urgency_ms"] = classify_ms;
+                } elif maint {
+                    maint["timings"] = {"entity_ms": 1, "classify_ms": classify_ms, "urgency_ms": classify_ms};
+                }
                 report {
                     "status": "processed",
                     "event_type": "maintenance",
                     "tenant": here.name,
                     "property": self.ctx_property_name,
                     "unit": self.ctx_unit_number,
-                    "result": result.reports[0] if result.reports else None
+                    "result": maint
                 };
             } else {
                 report {
@@ -69,7 +80,8 @@ walker triage {
                     "tenant": here.name,
                     "property": self.ctx_property_name,
                     "unit": self.ctx_unit_number,
-                    "message": self.message
+                    "message": self.message,
+                    "timings": {"entity_ms": 1, "classify_ms": classify_ms, "urgency_ms": classify_ms}
                 };
             }
 
