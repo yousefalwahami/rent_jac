@@ -26,6 +26,7 @@ obj:pub IncidentRecord {
     has assignee: str = "";
     has property_code: str = "";
     has steps: list = [];
+    has timings: dict = {};
 }
 
 def:pub status_classes(value: str) -> str {
