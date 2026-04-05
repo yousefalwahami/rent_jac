@@ -4,7 +4,7 @@ cl import from .incidents { IncidentsView }
 cl import from .settings { SettingsView }
 cl import from .sms_inbox { SmsInboxView }
 cl import from .login { LoginView }
-cl import from .shared { nav_button_classes, sample_incidents, IncidentRecord, create_incident_record }
+cl import from .shared { nav_button_classes, IncidentRecord, create_incident_record }
 
 def:pub ClientApp() -> JsxElement {
     has is_authenticated: bool = jacIsLoggedIn();
