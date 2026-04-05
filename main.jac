@@ -11,7 +11,8 @@ import from services.graphService {
     HasUnit, HasLease, HasTenant, HasTicket, Services, AssignedTo,
     seed_graph, list_properties, list_units, list_tickets, list_vendors,
     triage, handle_maintenance, approve_dispatch, resolve_ticket,
-    register_tenant, db_health
+    register_tenant, db_health,
+    list_tenants, add_property_node, delete_tenant_node, delete_property_node, match_tenant
 }
 cl import ".styles.global.css";
 cl import from .index { ClientApp }

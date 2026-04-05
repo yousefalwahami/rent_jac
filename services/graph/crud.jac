@@ -131,12 +131,16 @@ walker register_tenant {
     has rent_amount: float = 0.0;
     has lease_start: str = "";
     has lease_end: str = "";
+    has property_name: str = "";
 
     can start with Root entry {
         visit [-->][?:Property];
     }
 
     can find_unit with Property entry {
+        if self.property_name and here.name != self.property_name {
+            return;
+        }
         units = [->: HasUnit :->];
         for u in units {
             if u.number == self.unit_number {
@@ -177,5 +181,140 @@ walker db_health {
             "database": mongo,
             "graph_store": "ok"
         };
+    }
+}
+
+
+walker list_tenants {
+    can start with Root entry {
+        visit [-->][?:Property];
+    }
+
+    can at_property with Property entry {
+        prop_id = jid(here);
+        prop_name = here.name;
+        units = [->: HasUnit :->];
+        for u in units {
+            leases = [u ->: HasLease :->];
+            if leases {
+                tenants_in_unit = [leases[0] ->: HasTenant :->];
+                if tenants_in_unit {
+                    t = tenants_in_unit[0];
+                    report {
+                        "id": jid(t),
+                        "full_name": t.name,
+                        "phone_number": t.phone,
+                        "unit_number": u.number,
+                        "property_id": prop_id,
+                        "property_name": prop_name,
+                        "rent": leases[0].rent_amount,
+                        "lease_end": leases[0].end_date
+                    };
+                }
+            }
+        }
+    }
+}
+
+
+walker add_property_node {
+    has name: str = "";
+    has address: str = "";
+    has unit_numbers: list = [];
+
+    can create with Root entry {
+        prop = Property(name=self.name, address=self.address, city="", state="", zip_code="");
+        here ++> prop;
+        units_to_add = self.unit_numbers if self.unit_numbers else ["1A", "2A", "3B", "4B"];
+        for unit_num in units_to_add {
+            prop +>: HasUnit :+> Unit(number=unit_num, bedrooms=1, bathrooms=1, sq_ft=700);
+        }
+        report {
+            "status": "created",
+            "id": jid(prop),
+            "property": self.name,
+            "units": len(units_to_add)
+        };
+    }
+}
+
+
+walker delete_tenant_node {
+    has tenant_id: str = "";
+
+    can start with Root entry {
+        visit [-->][?:Property];
+    }
+
+    can at_property with Property entry {
+        units = [->: HasUnit :->];
+        for u in units {
+            leases = [u ->: HasLease :->];
+            for lease in leases {
+                tenants_in_lease = [lease ->: HasTenant :->];
+                for t in tenants_in_lease {
+                    if jid(t) == self.tenant_id {
+                        del t;
+                        report {"status": "deleted"};
+                        disengage;
+                    }
+                }
+            }
+        }
+    }
+
+    can not_found with Root exit {
+        report {"status": "not_found", "tenant_id": self.tenant_id};
+    }
+}
+
+
+walker delete_property_node {
+    has property_id: str = "";
+
+    can start with Root entry {
+        props = [-->][?:Property];
+        for p in props {
+            if jid(p) == self.property_id {
+                del p;
+                report {"status": "deleted"};
+                disengage;
+            }
+        }
+        report {"status": "not_found"};
+    }
+}
+
+
+walker match_tenant {
+    has phone: str = "";
+
+    can start with Root entry {
+        visit [-->][?:Property];
+    }
+
+    can at_property with Property entry {
+        units = [->: HasUnit :->];
+        for u in units {
+            leases = [u ->: HasLease :->];
+            if leases {
+                tenants_in_unit = [leases[0] ->: HasTenant :->];
+                for t in tenants_in_unit {
+                    if t.phone == self.phone {
+                        report {
+                            "matched": True,
+                            "tenant_name": t.name,
+                            "property_name": here.name,
+                            "unit": u.number
+                        };
+                        disengage;
+                    }
+                }
+            }
+        }
+    }
+
+    can not_found with Root exit {
+        report {"matched": False};
     }
 }

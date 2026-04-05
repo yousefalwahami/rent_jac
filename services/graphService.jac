@@ -17,7 +17,8 @@ import from services.graph.ai {
 import from services.graph.seed { seed_graph }
 
 import from services.graph.crud {
-    list_properties, list_units, list_tickets, list_vendors, register_tenant, db_health
+    list_properties, list_units, list_tickets, list_vendors, register_tenant, db_health,
+    list_tenants, add_property_node, delete_tenant_node, delete_property_node, match_tenant
 }
 
 import from services.graph.triage { triage }

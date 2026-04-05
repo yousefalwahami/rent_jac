@@ -6,7 +6,7 @@ import from twilio.rest { Client }
 import from datetime { datetime }
 import from services.graphService { triage }
 import from logging { getLogger }
-import from services.dataService { match_phone }
+import from services.graph.crud { match_tenant }
 import from services.graph.localdb { log_sms, log_walker_run, create_notification }
 
 glob _env: any = load_dotenv();
@@ -33,7 +33,13 @@ def:pub get_messages() -> dict {
                 if "Sent from your Twilio trial account" in str(m.body) {
                     continue;
                 }
-                match_result = match_phone(str(m.from_));
+                match_result = {"matched": False};
+                try {
+                    mt = root spawn match_tenant(phone=str(m.from_));
+                    match_result = mt.reports[0] if (mt and mt.reports) else {"matched": False};
+                } except Exception {
+                    match_result = {"matched": False};
+                }
                 fmt_msgs.append({
                     "from": m.from_,
                     "to": m.to,
