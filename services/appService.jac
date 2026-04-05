@@ -250,6 +250,13 @@ def:pub delete_message(msg_id: str) -> dict {
             return {"success": True};
         } else {
             for i in range(len(messages)) {
+                if messages[i].get("sid", "") == sid or str(messages[i].get("id", "")) == sid {
+                    messages.pop(i);
+                    return {"success": True};
+                }
+            }
+            # Fallback for old memory mock
+            for i in range(len(messages)) {
                 messages.pop(i);
                 return {"success": True};
             }
