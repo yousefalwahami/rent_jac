@@ -1,6 +1,6 @@
 cl import from shared { IncidentRecord, panel_classes, incident_row, empty_state }
 
-def:pub dashboard_view(incidents: list, selected: IncidentRecord, set_selected: any) -> JsxElement {
+def:pub dashboard_view(incidents: list, selected: IncidentRecord, set_selected: any, delete_incident: any = None) -> JsxElement {
     if len(incidents) == 0 {
         return (
             <div className="flex w-full flex-col p-10 bg-slate-50 min-h-full font-sans">
@@ -65,7 +65,7 @@ def:pub dashboard_view(incidents: list, selected: IncidentRecord, set_selected: 
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/50 min-h-[400px]">
                         {incidents.map(lambda incident: IncidentRecord -> JsxElement {
-                            return incident_row(incident, selected != None and incident.id == selected.id, lambda -> None { set_selected(incident); });
+                            return incident_row(incident, selected != None and incident.id == selected.id, lambda -> None { set_selected(incident); }, delete_incident);
                         })}
                     </div>
                 </div>
