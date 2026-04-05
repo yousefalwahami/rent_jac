@@ -6,10 +6,17 @@ import from services.graph.models {
     HasLease, HasTenant, HasTicket, Services
 }
 import from services.graph.ai {
-    diagnose_issue, select_vendor, assess_risk,
+    diagnose_issue, select_vendor,
     draft_tenant_reply, draft_owner_alert
 }
 import from services.foursquare { fetch_vendors_near }
+
+
+obj _FallbackRisk {
+    has level: str = "moderate";
+    has flags: str = "auto_assessed";
+    has recommendation: str = "Dispatch vendor promptly";
+}
 
 
 walker handle_maintenance {
@@ -97,18 +104,15 @@ walker handle_maintenance {
             }
         }
 
-        # 5. Assess risk via LLM
-        t0 = datetime.now();
-        risk_ctx = (
-            "Unit " + here.number + " at " + self.property_name + "\n"
-            + "Category: " + diagnosis.category + "\n"
-            + "Same-category incidents on this unit: " + str(same_cat_count) + "\n"
-            + "Tenant payment status: " + payment_status + "\n"
-            + "Urgency: " + diagnosis.urgency + "\n"
-            + "Diagnosis: " + diagnosis.summary
+        # 5. Rule-based risk assessment (no LLM call — avoids Groq tool_use_failed errors)
+        risk_ms = 0;
+        lvl = "high" if diagnosis.urgency in ["high", "critical", "High", "Critical"] else ("moderate" if diagnosis.urgency in ["medium", "Medium"] else "low");
+        risk = _FallbackRisk(
+            level=lvl,
+            flags=diagnosis.category + "_risk",
+            recommendation="Dispatch vendor promptly for " + diagnosis.category + " issue"
         );
-        risk = assess_risk(risk_ctx);
-        risk_ms = int((datetime.now() - t0).total_seconds() * 1000);
+        print("[maintenance] risk=" + risk.level + " (rule-based)");
 
         # 6. Select best vendor via LLM
         t0 = datetime.now();

@@ -193,7 +193,16 @@ async def:pub twilio_webhook(request: Request) -> dict {
             _pending_ticket = {};
             return {"success": True, "action": "rejected", "ticket_id": ticket_id};
         }
-        # If not a YES/NO, fall through to normal triage
+        # If not a valid YES/NO, still ignore — landlord number is not a tenant
+    }
+
+    # Ignore ALL messages from the landlord alert number — not a tenant, no tickets
+    if from_number == alert_num {
+        print("Ignoring message from landlord alert number: " + from_number);
+        return Response(
+            content="<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response></Response>",
+            media_type="application/xml"
+        );
     }
 
     msg_entry = {

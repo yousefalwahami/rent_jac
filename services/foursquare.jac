@@ -1,7 +1,6 @@
-"""Vendor discovery — mock implementation with simulated latency."""
+"""Vendor discovery — mock implementation with instant return."""
 
-import from time { sleep }
-import from random { uniform, randint }
+import from random { randint }
 
 
 # Fake vendor pool keyed by category
@@ -37,15 +36,8 @@ glob _DEFAULT_NEAR: str = "Toronto, ON";
 
 
 def fetch_vendors_near(category: str, near: str) -> list {
-    # Simulate live API search latency (3–8 seconds)
-    delay = uniform(3.0, 8.0);
-    location = near if (near and len(near) > 4) else _DEFAULT_NEAR;
-    print("[foursquare] simulating vendor search (" + str(round(delay, 1)) + "s) for '" + category + "' near '" + location + "'");
-    sleep(delay);
-
     key = category.lower();
     pool = _FAKE_VENDORS.get(key, _FAKE_VENDORS["general"]);
-
     count = randint(2, len(pool));
     vendors = [];
     for v in pool[:count] {
@@ -57,7 +49,7 @@ def fetch_vendors_near(category: str, near: str) -> list {
             "avg_cost": v["avg_cost"]
         });
     }
-
-    print("[foursquare] returning " + str(len(vendors)) + " mock vendor(s) for category '" + category + "'");
+    print("[foursquare] returning " + str(len(vendors)) + " mock vendor(s) for '" + category + "'");
     return vendors;
 }
+

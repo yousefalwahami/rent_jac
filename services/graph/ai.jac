@@ -19,12 +19,12 @@ sem MaintenanceDiagnosis.recommended_action = "Specific recommended next step to
 
 obj RiskAssessment {
     has level: str;
-    has flags: list[str];
+    has flags: str;
     has recommendation: str;
 }
 
 sem RiskAssessment.level = "One of: low, moderate, high";
-sem RiskAssessment.flags = "List of specific risk factors identified in this situation";
+sem RiskAssessment.flags = "Comma-separated risk factors (e.g. repeat_incident, safety_hazard, property_damage)";
 sem RiskAssessment.recommendation = "Brief recommendation considering the risk factors";
 
 

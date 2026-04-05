@@ -35,6 +35,8 @@ def:pub ClientApp() -> JsxElement {
         result = [];
         ctr = 1000;
         for msg in msgs {
+            # Landlord alert number is not a tenant — exclude from incident list
+            if str(msg["from"]) == "+15199992505" { ctr += 1; continue; }
             t_name = str(msg["tenant_name"]) if msg["matched"] else str(msg["from"]);
             p_name = str(msg["property_name"]) if msg["matched"] else "Unknown Property";
             u_name = str(msg["unit"]) if msg["matched"] else "?";
@@ -114,6 +116,62 @@ def:pub ClientApp() -> JsxElement {
         return result;
     }
 
+    async def run_triage_bg(msg: dict, sid: str, msgs: list) -> None {
+        # Landlord alert number is not a tenant — never create tickets for it
+        if str(msg["from"]) == "+15199992505" { return; }
+        # Phase 1: fast diagnosis (~500ms) — updates urgency/entity/classification immediately
+        try {
+            p1 = await __doWalkerFetch("maintenance_phase1", "", {"body": str(msg["body"]), "from_number": str(msg["from"])});
+            console.log("[phase1] reports=", p1["reports"]);
+            if p1 and p1["reports"] and p1["reports"][0] and p1["reports"][0]["step"] == "diagnosed" {
+                d = p1["reports"][0];
+                partial = {
+                    "status": "processing",
+                    "event_type": "maintenance",
+                    "tenant": d["tenant"],
+                    "property": d["property"],
+                    "unit": d["unit"],
+                    "category": d["category"],
+                    "urgency": d["urgency"],
+                    "summary": d["summary"],
+                    "recommended_action": d["recommended_action"],
+                    "result": None,
+                    "timings": d["timings"]
+                };
+                msg["triage"] = partial;
+                if sid { _triage_cache[sid] = partial; }
+                live_incidents = build_incidents_list(msgs);
+            }
+        } except Exception {}
+
+        # Phase 2: full pipeline — LLM calls take ~2-3s naturally, vendor data is instant
+        try {
+            tr = await __doWalkerFetch("run_maintenance_direct", "", {"body": str(msg["body"]), "from_number": str(msg["from"])});
+            console.log("[run_maintenance_direct] reports=", tr["reports"]);
+            triage_val = None;
+            if tr and tr["reports"] and tr["reports"][0] {
+                raw = tr["reports"][0];
+                if raw["ticket_id"] {
+                    triage_val = {
+                        "status": "processed",
+                        "event_type": "maintenance",
+                        "tenant": raw["tenant"],
+                        "property": raw["property"],
+                        "unit": raw["unit"],
+                        "result": raw,
+                        "timings": raw["timings"] if "timings" in raw else {}
+                    };
+                    await __doFuncFetch("send_maintenance_alert", {"maint_result": raw});
+                } elif not raw["success"] {
+                    console.log("[run_maintenance_direct] failed:", raw["error"]);
+                }
+            }
+            if triage_val { msg["triage"] = triage_val; }
+            if triage_val and sid { _triage_cache[sid] = triage_val; }
+            live_incidents = build_incidents_list(msgs);
+        } except Exception {}
+    }
+
     async def load_live_data() -> None {
         if not jacIsLoggedIn() {
             loading_live = False;
@@ -177,58 +235,9 @@ def:pub ClientApp() -> JsxElement {
                     _triaged_sids[sid] = True;
                 }
             }
-            if len(needs_triage) > 0 {
-                for msg in needs_triage {
-                    try {
-                        sid = str(msg["sid"]) if msg["sid"] else "";
-
-                        # ── Phase 1: Diagnosis only (fast, ~500ms) ──────────────
-                        p1 = await __doWalkerFetch("maintenance_phase1", "", {"body": str(msg["body"]), "from_number": str(msg["from"])});
-                        console.log("[phase1] reports=", p1["reports"]);
-                        if p1 and p1["reports"] and p1["reports"][0] and p1["reports"][0]["step"] == "diagnosed" {
-                            d = p1["reports"][0];
-                            partial = {
-                                "status": "processing",
-                                "event_type": "maintenance",
-                                "tenant": d["tenant"],
-                                "property": d["property"],
-                                "unit": d["unit"],
-                                "category": d["category"],
-                                "urgency": d["urgency"],
-                                "summary": d["summary"],
-                                "result": None,
-                                "timings": d["timings"]
-                            };
-                            msg["triage"] = partial;
-                            if sid { _triage_cache[sid] = partial; }
-                            live_incidents = build_incidents_list(messages);
-                        }
-
-                        # ── Phase 2: Vendor search + full pipeline (slow, 3–8s) ──
-                        tr = await __doWalkerFetch("run_maintenance_direct", "", {"body": str(msg["body"]), "from_number": str(msg["from"])});
-                        console.log("[run_maintenance_direct] reports=", tr["reports"]);
-                        triage_val = None;
-                        if tr and tr["reports"] and tr["reports"][0] {
-                            raw = tr["reports"][0];
-                            if raw["ticket_id"] {
-                                triage_val = {
-                                    "status": "processed",
-                                    "event_type": "maintenance",
-                                    "tenant": raw["tenant"],
-                                    "property": raw["property"],
-                                    "unit": raw["unit"],
-                                    "result": raw,
-                                    "timings": raw["timings"] if "timings" in raw else {}
-                                };
-                                await __doFuncFetch("send_maintenance_alert", {"maint_result": raw});
-                            } elif not raw["success"] {
-                                console.log("[run_maintenance_direct] failed:", raw["error"]);
-                            }
-                        }
-                        if triage_val { msg["triage"] = triage_val; }
-                        if triage_val and sid { _triage_cache[sid] = triage_val; }
-                    } except Exception {}
-                }
+            # Fire triage for each new message in the background — non-blocking
+            for msg in needs_triage {
+                run_triage_bg(msg, str(msg["sid"]) if msg["sid"] else "", messages);
             }
             live_incidents = build_incidents_list(messages);
         } except Exception as ex {
