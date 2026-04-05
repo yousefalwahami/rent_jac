@@ -20,11 +20,13 @@ walker handle_maintenance {
 
     can process with Unit entry {
         t_total = datetime.now();
+        print("[maintenance] started for unit=" + here.number + " message=" + self.message[:60]);
 
         # 1. Diagnose the issue via LLM
         t0 = datetime.now();
         diagnosis = diagnose_issue(self.message);
         diagnose_ms = int((datetime.now() - t0).total_seconds() * 1000);
+        print("[maintenance] diagnosis category=" + str(diagnosis.category) + " urgency=" + str(diagnosis.urgency));
 
         # 2. Count past tickets in this category (graph reasoning)
         past_tickets = [->: HasTicket :->];
@@ -45,6 +47,7 @@ walker handle_maintenance {
         # 4. Traverse up to property, then across to vendor graph
         prop_nodes = [<--][?:Property];
         prop = prop_nodes[0] if prop_nodes else None;
+        print("[maintenance] prop=" + (prop.name if prop else "NONE — vendor graph unreachable"));
         vendors_info = "";
         vendor_list: list = [];
         if prop {
@@ -59,6 +62,7 @@ walker handle_maintenance {
                 );
             }
         }
+        print("[maintenance] graph vendors=" + str(len(vendor_list)));
 
         # 4b. Enrich vendor list with live Foursquare data
         near = "";
@@ -67,6 +71,7 @@ walker handle_maintenance {
             elif prop.address { near = prop.address; }
         }
         fs_vendors = fetch_vendors_near(diagnosis.category, near);
+        print("[maintenance] foursquare vendors=" + str(len(fs_vendors)));
         if prop and fs_vendors {
             existing_names = [v.name for v in vendor_list];
             for fv in fs_vendors {
@@ -113,6 +118,7 @@ walker handle_maintenance {
                 diagnosis.summary + " (Category: " + diagnosis.category + ")",
                 vendors_info
             );
+            print("[maintenance] LLM selected vendor name='" + str(selected_name) + "'");
             for v in vendor_list {
                 if v.name in selected_name or selected_name in v.name {
                     best_vendor = v;
@@ -122,7 +128,10 @@ walker handle_maintenance {
             if not best_vendor and vendor_list {
                 best_vendor = vendor_list[0];
             }
+        } else {
+            print("[maintenance] vendors_info is EMPTY — no vendor list to pick from");
         }
+        print("[maintenance] best_vendor=" + (best_vendor.name if best_vendor else "NONE"));
         vendor_ms = int((datetime.now() - t0).total_seconds() * 1000);
 
         # 7. Draft communications via LLM

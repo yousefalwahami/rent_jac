@@ -106,8 +106,10 @@ def:pub ClientApp() -> JsxElement {
 
                 triage_data = msg["triage"] if ("triage" in msg and msg["triage"]) else None;
                 maint_result = None;
+                console.log("[triage_data] sid=" + str(msg["sid"]) + " triage=", triage_data);
                 if triage_data and triage_data["event_type"] == "maintenance" and triage_data["result"] {
                     maint_result = triage_data["result"];
+                    console.log("[maint_result]", maint_result);
                 }
 
                 inc_category = "Incoming SMS";
