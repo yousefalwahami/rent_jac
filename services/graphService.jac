@@ -410,57 +410,57 @@ walker list_vendors {
 walker triage {
     has message: str = "";
     has sender_phone: str = "";
-    has _property_name: str = "";
-    has _unit_number: str = "";
-    has _unit_ref: any = None;
-    has _found: bool = False;
+    has property_name: str = "";
+    has unit_number: str = "";
+    has unit_ref: any = None;
+    has found: bool = False;
 
     can start with Root entry {
         visit : 0 : [-->][?:Property];
     }
 
     can at_property with Property entry {
-        if not self._found {
-            self._property_name = here.name;
+        if not self.found {
+            self.property_name = here.name;
             visit : 0 : [->: HasUnit :->];
         }
     }
 
     can at_unit with Unit entry {
-        if not self._found {
-            self._unit_number = here.number;
-            self._unit_ref = here;
+        if not self.found {
+            self.unit_number = here.number;
+            self.unit_ref = here;
             visit : 0 : [->: HasLease :->];
         }
     }
 
     can at_lease with Lease entry {
-        if not self._found {
+        if not self.found {
             visit : 0 : [->: HasTenant :->];
         }
     }
 
     can at_tenant with Tenant entry {
-        if not self._found and here.phone == self.sender_phone {
-            self._found = True;
+        if not self.found and here.phone == self.sender_phone {
+            self.found = True;
 
             # Classify the inbound message
             classification = classify_event(self.message);
 
             if classification == EventType.MAINTENANCE {
                 # Spawn maintenance handler on the unit
-                result = self._unit_ref spawn handle_maintenance(
+                result = self.unit_ref spawn handle_maintenance(
                     message=self.message,
                     tenant_name=here.name,
                     tenant_phone=here.phone,
-                    property_name=self._property_name
+                    property_name=self.property_name
                 );
                 report {
                     "status": "processed",
                     "event_type": "maintenance",
                     "tenant": here.name,
-                    "property": self._property_name,
-                    "unit": self._unit_number,
+                    "property": self.property_name,
+                    "unit": self.unit_number,
                     "result": result.reports[0] if result.reports else None
                 };
             } else {
@@ -468,8 +468,8 @@ walker triage {
                     "status": "classified",
                     "event_type": str(classification).split(".")[-1].lower(),
                     "tenant": here.name,
-                    "property": self._property_name,
-                    "unit": self._unit_number,
+                    "property": self.property_name,
+                    "unit": self.unit_number,
                     "message": self.message
                 };
             }
@@ -479,7 +479,7 @@ walker triage {
     }
 
     can finish with Root exit {
-        if not self._found {
+        if not self.found {
             report {
                 "status": "tenant_not_found",
                 "phone": self.sender_phone,
