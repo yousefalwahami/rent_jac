@@ -195,16 +195,25 @@ def:pub ClientApp() -> JsxElement {
             <aside className={"flex-shrink-0 border-r border-slate-200 bg-slate-50/50 flex flex-col justify-between transition-all duration-300 " + (sidebar_collapsed and "w-[72px]" or "w-[260px]")}>
                 <div className={"px-4 py-5" + (sidebar_collapsed and " flex flex-col items-center" or "")}>
                     
-                    <div className={"flex items-center gap-3 px-2 mb-6 cursor-pointer group " + (sidebar_collapsed and "justify-center px-0" or "")}>
-                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900 text-white text-sm font-semibold shadow-sm group-hover:bg-slate-800 transition-colors shrink-0">
-                            R
-                        </div>
-                        {not sidebar_collapsed and (
-                            <div>
-                                <h1 className="text-[14px] font-semibold tracking-tight text-slate-900">Rentora</h1>
-                                <p className="text-[12px] text-slate-500 line-clamp-1">Production Environment</p>
+                    <div className={"flex items-center mb-6 " + (sidebar_collapsed and "justify-center" or "justify-between")}>
+                        <div className={"flex items-center gap-3 cursor-pointer group " + (sidebar_collapsed and "justify-center" or "px-2")}>
+                            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-900 text-white text-sm font-semibold shadow-sm group-hover:bg-slate-800 transition-colors shrink-0">
+                                R
                             </div>
-                        )}
+                            {not sidebar_collapsed and (
+                                <div>
+                                    <h1 className="text-[14px] font-semibold tracking-tight text-slate-900">Rentora</h1>
+                                    <p className="text-[12px] text-slate-500 line-clamp-1">Production Environment</p>
+                                </div>
+                            )}
+                        </div>
+                        <button onClick={lambda -> None { sidebar_collapsed = not sidebar_collapsed; }} className="text-slate-400 hover:text-slate-700 p-1 rounded-md hover:bg-slate-100 transition" title={sidebar_collapsed and "Expand sidebar" or "Collapse sidebar"}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="3" y1="12" x2="21" y2="12"></line>
+                                <line x1="3" y1="6" x2="21" y2="6"></line>
+                                <line x1="3" y1="18" x2="21" y2="18"></line>
+                            </svg>
+                        </button>
                     </div>
 
                     
@@ -255,13 +264,6 @@ def:pub ClientApp() -> JsxElement {
                 
                 <header className="h-14 flex-shrink-0 border-b border-slate-200 flex items-center justify-between px-6 bg-white">
                     <div className="flex items-center gap-4">
-                        <button onClick={lambda -> None { sidebar_collapsed = not sidebar_collapsed; }} className="text-slate-500 hover:text-slate-900 focus:outline-none p-1 rounded-md hover:bg-slate-100 transition mr-2">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <line x1="3" y1="12" x2="21" y2="12"></line>
-                                <line x1="3" y1="6" x2="21" y2="6"></line>
-                                <line x1="3" y1="18" x2="21" y2="18"></line>
-                            </svg>
-                        </button>
                         <h2 className="text-sm font-medium text-slate-900">{title_text}</h2>
                     </div>
                     
