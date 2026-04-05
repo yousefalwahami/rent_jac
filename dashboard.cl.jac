@@ -120,7 +120,7 @@ def:pub DashboardView(props: dict) -> JsxElement {
                 <div className="flex gap-2 items-center">
                     {len(selected_ids) > 0 and (
                         <button onClick={prompt_bulk_delete} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-md text-xs font-semibold shadow-sm transition">
-                            Delete {len(selected_ids)} Selected
+                            {"Delete " + str(len(selected_ids)) + " Selected"}
                         </button>
                     )}
                     {len(incidents) > 0 and (
