@@ -3,6 +3,7 @@ import from fastapi { Request, HTTPException }
 import from pydantic { BaseModel }
 import from dotenv { load_dotenv }
 import from twilio.rest { Client }
+import from services.graph.models { Property, Unit, Lease, Tenant }
 import from datetime { datetime }
 import from services.graphService { triage, list_properties, list_tenants, add_property_node, register_tenant, delete_property_node, delete_tenant_node }
 import from logging { getLogger }
@@ -255,67 +256,116 @@ def:pub run_triage_for_message(body: str, from_number: str, msg_sid: str = "") -
 }
 
 
-def:pub fetch_properties() -> dict {
-    try {
-        result = root spawn list_properties();
-        props = result.reports[0] if (result and result.reports) else [];
-        return {"properties": props if props else []};
-    } except Exception as e {
-        print("fetch_properties error: " + str(e));
-        return {"properties": []};
-    }
-}
-
-
-def:pub fetch_tenants() -> dict {
-    try {
-        result = root spawn list_tenants();
-        return {"tenants": result.reports if (result and result.reports) else []};
-    } except Exception as e {
-        print("fetch_tenants error: " + str(e));
-        return {"tenants": []};
-    }
-}
-
-
-def:pub save_property_data(name: str, address: str) -> dict {
-    if not name {
-        return {"status": "error", "message": "Property name is required"};
-    }
-    try {
-        result = root spawn add_property_node(name=name, address=address);
-        if result and result.reports {
-            return result.reports[0];
+walker seed_if_empty {
+    can run with Root entry {
+        check = root spawn list_properties();
+        existing = check.reports[0] if (check and check.reports) else [];
+        if existing and len(existing) > 0 {
+            report {"status": "already_seeded", "count": len(existing)};
+            disengage;
         }
-        return {"status": "error", "message": "No result from walker"};
-    } except Exception as e {
-        print("save_property_data error: " + str(e));
-        return {"status": "error", "message": str(e)};
+        root spawn add_property_node(name="Harbor Point Apts", address="221 Lakeview Dr", unit_numbers=["1A", "2B", "3C"]);
+        root spawn add_property_node(name="Maple Street House", address="845 Maple St", unit_numbers=["Unit 1", "Unit 2"]);
+        root spawn add_property_node(name="Oak View Complex", address="560 Oak Ave", unit_numbers=["101", "102", "201"]);
+        root spawn register_tenant(tenant_name="John Smith", tenant_phone="+15551001001", unit_number="1A", rent_amount=1400.0, lease_start="2025-01-01", lease_end="2026-12-31", property_name="Harbor Point Apts");
+        root spawn register_tenant(tenant_name="Sarah Johnson", tenant_phone="+15551001002", unit_number="2B", rent_amount=1600.0, lease_start="2025-01-01", lease_end="2026-12-31", property_name="Harbor Point Apts");
+        root spawn register_tenant(tenant_name="Mike Lee", tenant_phone="+15551001003", unit_number="Unit 1", rent_amount=1200.0, lease_start="2025-01-01", lease_end="2026-12-31", property_name="Maple Street House");
+        root spawn register_tenant(tenant_name="Emily Chen", tenant_phone="+15551001004", unit_number="101", rent_amount=950.0, lease_start="2025-01-01", lease_end="2026-12-31", property_name="Oak View Complex");
+        report {"status": "seeded", "properties": 3, "tenants": 4};
     }
 }
 
 
-def:pub save_tenant_data(tenant_name: str, tenant_phone: str, unit_number: str, rent_amount: float, property_name: str) -> dict {
-    if not (tenant_name and tenant_phone and unit_number and property_name) {
-        return {"status": "error", "message": "All fields are required"};
+walker fetch_properties {
+    can list with Root entry {
+        result = [];
+        for p in [here -->][?:Property] {
+            units = [p -->][?:Unit];
+            result.append({
+                "id": str(p.__jac__.id),
+                "name": p.name,
+                "address": p.address,
+                "city": p.city,
+                "state": p.state,
+                "unit_count": len(units)
+            });
+        }
+        report result;
     }
-    try {
+}
+
+
+walker fetch_tenants {
+    can list with Root entry {
+        result = [];
+        for p in [here -->][?:Property] {
+            for u in [p -->][?:Unit] {
+                for l in [u -->][?:Lease] {
+                    for t in [l -->][?:Tenant] {
+                        result.append({
+                            "id": str(t.__jac__.id),
+                            "full_name": t.name,
+                            "phone_number": t.phone,
+                            "unit_number": u.number,
+                            "property_id": str(p.__jac__.id),
+                            "property_name": p.name,
+                            "rent": str(l.rent_amount),
+                            "lease_end": l.end_date
+                        });
+                    }
+                }
+            }
+        }
+        report result;
+    }
+}
+
+
+walker save_property_data {
+    has name: str = "";
+    has address: str = "";
+
+    can create with Root entry {
+        if not self.name {
+            report {"status": "error", "message": "Property name is required"};
+            disengage;
+        }
+        result = root spawn add_property_node(name=self.name, address=self.address);
+        if result and result.reports {
+            report result.reports[0];
+        } else {
+            report {"status": "error", "message": "No result from walker"};
+        }
+    }
+}
+
+
+walker save_tenant_data {
+    has tenant_name: str = "";
+    has tenant_phone: str = "";
+    has unit_number: str = "";
+    has rent_amount: float = 0.0;
+    has property_name: str = "";
+
+    can create with Root entry {
+        if not (self.tenant_name and self.tenant_phone and self.unit_number and self.property_name) {
+            report {"status": "error", "message": "All fields are required"};
+            disengage;
+        }
         result = root spawn register_tenant(
-            tenant_name=tenant_name,
-            tenant_phone=tenant_phone,
-            unit_number=unit_number,
-            rent_amount=rent_amount,
+            tenant_name=self.tenant_name,
+            tenant_phone=self.tenant_phone,
+            unit_number=self.unit_number,
+            rent_amount=self.rent_amount,
             lease_start="2025-01-01",
             lease_end="2026-12-31",
-            property_name=property_name
+            property_name=self.property_name
         );
         if result and result.reports {
-            return result.reports[0];
+            report result.reports[0];
+        } else {
+            report {"status": "error", "message": "No result from walker"};
         }
-        return {"status": "error", "message": "No result from walker"};
-    } except Exception as e {
-        print("save_tenant_data error: " + str(e));
-        return {"status": "error", "message": str(e)};
     }
 }
 

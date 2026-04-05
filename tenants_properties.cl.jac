@@ -1,4 +1,4 @@
-import from "@jac/runtime" { __doFuncFetch }
+import from "@jac/runtime" { __doFuncFetch, __doWalkerFetch }
 cl import from shared { panel_classes }
 
 def:pub TenantsPropertiesView() -> JsxElement {
@@ -49,55 +49,42 @@ def:pub TenantsPropertiesView() -> JsxElement {
     async def reload() -> None {
         loading = True;
         try {
-            properties = ls_load("rentora_properties");
-            tenants = ls_load("rentora_tenants");
+            props_res = await __doWalkerFetch("fetch_properties", "", {});
+            properties = props_res["reports"][0] if (props_res and props_res["reports"] and props_res["reports"][0]) else [];
+            tenants_res = await __doWalkerFetch("fetch_tenants", "", {});
+            tenants = tenants_res["reports"][0] if (tenants_res and tenants_res["reports"] and tenants_res["reports"][0]) else [];
         } except Exception as e {
             error_msg = "Failed to load: " + str(e);
         }
         loading = False;
     }
 
+    async def init() -> None {
+        #try { await __doWalkerFetch("seed_if_empty", "", {}); } except Exception {}
+        await reload();
+    }
+
     if not _loaded {
         _loaded = True;
-        reload();
+        init();
     }
 
     async def save_property() -> None {
         if not form_prop_name { return; }
-        all_p = ls_load("rentora_properties");
-        if edit_prop_id {
-            for i in range(len(all_p)) {
-                if all_p[i]["id"] == edit_prop_id {
-                    all_p[i]["name"] = form_prop_name;
-                    all_p[i]["address"] = form_prop_address;
-                    all_p[i]["notes"] = form_prop_notes;
-                    all_p[i]["tags"] = [t.strip() for t in form_prop_tags.split(",") if t.strip()];
-                }
-            }
-        } else {
-            p = {
-                "id": "P-" + str(Date.now()) + "-" + str(len(all_p)),
-                "name": form_prop_name,
-                "address": form_prop_address,
-                "notes": form_prop_notes,
-                "tags": [t.strip() for t in form_prop_tags.split(",") if t.strip()]
-            };
-            all_p.append(p);
+        try {
+            await __doWalkerFetch("save_property_data", "", {"name": form_prop_name, "address": form_prop_address});
+            show_toast(edit_prop_id and "Property updated" or "Property added");
+        } except Exception as e {
+            error_msg = "Save failed: " + str(e);
+            return;
         }
-        ls_save("rentora_properties", all_p);
-        show_toast(edit_prop_id and "Property updated" or "Property added");
-        saved_name = form_prop_name;
-        saved_address = form_prop_address;
         show_prop_modal = False;
         form_prop_name = "";
         form_prop_address = "";
         form_prop_notes = "";
         form_prop_tags = "";
         edit_prop_id = "";
-        reload();
-        try {
-            await __doFuncFetch("save_property_data", {"name": saved_name, "address": saved_address});
-        } except Exception {}
+        await reload();
     }
 
     async def delete_property(p_id: str) -> None {
@@ -122,43 +109,21 @@ def:pub TenantsPropertiesView() -> JsxElement {
         for p in properties {
             if p["id"] == form_tenant_prop_id { prop_name = p["name"]; break; }
         }
-        all_t = ls_load("rentora_tenants");
-        if edit_tenant_id {
-            for i in range(len(all_t)) {
-                if all_t[i]["id"] == edit_tenant_id {
-                    all_t[i]["full_name"] = form_tenant_name;
-                    all_t[i]["phone_number"] = form_tenant_phone;
-                    all_t[i]["email"] = form_tenant_email;
-                    all_t[i]["unit_number"] = form_tenant_unit;
-                    all_t[i]["property_id"] = form_tenant_prop_id;
-                    all_t[i]["property_name"] = prop_name;
-                    all_t[i]["rent"] = form_tenant_rent;
-                    all_t[i]["notes"] = form_tenant_notes;
-                    all_t[i]["tags"] = [tg.strip() for tg in form_tenant_tags.split(",") if tg.strip()];
-                }
-            }
-        } else {
-            t = {
-                "id": "T-" + str(Date.now()) + "-" + str(len(all_t)),
-                "full_name": form_tenant_name,
-                "phone_number": form_tenant_phone,
-                "email": form_tenant_email,
+        try {
+            rent_f = 0.0;
+            try { rent_f = float(form_tenant_rent); } except Exception {}
+            await __doWalkerFetch("save_tenant_data", "", {
+                "tenant_name": form_tenant_name,
+                "tenant_phone": form_tenant_phone,
                 "unit_number": form_tenant_unit,
-                "property_id": form_tenant_prop_id,
-                "property_name": prop_name,
-                "rent": form_tenant_rent,
-                "notes": form_tenant_notes,
-                "tags": [tg.strip() for tg in form_tenant_tags.split(",") if tg.strip()]
-            };
-            all_t.append(t);
+                "rent_amount": rent_f,
+                "property_name": prop_name
+            });
+            show_toast(edit_tenant_id and "Tenant updated" or "Tenant added");
+        } except Exception as e {
+            error_msg = "Save failed: " + str(e);
+            return;
         }
-        ls_save("rentora_tenants", all_t);
-        show_toast(edit_tenant_id and "Tenant updated" or "Tenant added");
-        saved_tenant_name = form_tenant_name;
-        saved_tenant_phone = form_tenant_phone;
-        saved_unit = form_tenant_unit;
-        saved_rent = form_tenant_rent;
-        saved_prop_name = prop_name;
         show_tenant_modal = False;
         form_tenant_name = "";
         form_tenant_phone = "";
@@ -169,18 +134,7 @@ def:pub TenantsPropertiesView() -> JsxElement {
         form_tenant_notes = "";
         form_tenant_tags = "";
         edit_tenant_id = "";
-        reload();
-        try {
-            rent_f = 0.0;
-            try { rent_f = float(saved_rent); } except Exception {}
-            await __doFuncFetch("save_tenant_data", {
-                "tenant_name": saved_tenant_name,
-                "tenant_phone": saved_tenant_phone,
-                "unit_number": saved_unit,
-                "rent_amount": rent_f,
-                "property_name": saved_prop_name
-            });
-        } except Exception {}
+        await reload();
     }
 
     async def delete_tenant(t_id: str) -> None {
