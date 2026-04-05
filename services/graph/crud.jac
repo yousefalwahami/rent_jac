@@ -4,6 +4,7 @@ import from services.graph.models {
     Property, Unit, Lease, Tenant, Ticket, Vendor,
     HasUnit, HasLease, HasTenant, HasTicket, Services
 }
+import from services.graph.localdb { check_db_health }
 
 
 walker list_properties {
@@ -165,5 +166,16 @@ walker register_tenant {
             }
         }
         report {"status": "error", "message": "Unit " + self.unit_number + " not found"};
+    }
+}
+
+
+walker db_health {
+    can check with Root entry {
+        mongo = check_db_health();
+        report {
+            "database": mongo,
+            "graph_store": "ok"
+        };
     }
 }

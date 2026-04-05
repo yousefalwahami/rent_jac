@@ -7,7 +7,7 @@ import from datetime { datetime }
 import from services.graphService { triage }
 import from logging { getLogger }
 import from services.dataService { match_phone }
-import from services.graph.mongodb { log_sms, log_walker_run, create_notification }
+import from services.graph.localdb { log_sms, log_walker_run, create_notification }
 
 glob _env: any = load_dotenv();
 glob _twilio_log: any = getLogger("twilio.http_client").setLevel(40);
