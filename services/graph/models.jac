@@ -11,10 +11,10 @@ enum EventType {
     INQUIRY
 }
 
-sem EventType.MAINTENANCE = "Repairs, broken items, leaks, no heat or AC, water damage, mold";
+sem EventType.MAINTENANCE = "Any physical repair or service need in the unit or building: broken items, leaks, no heat or AC, water damage, mold, power outage, electrical issues, plumbing, appliance failure, structural damage, pest control";
 sem EventType.PAYMENT = "Rent payments, billing, late fees, payment plans";
 sem EventType.LEASE = "Lease terms, renewal, move-in, move-out, lease questions";
-sem EventType.COMPLAINT = "Noise, neighbor disputes, common area issues, safety concerns";
+sem EventType.COMPLAINT = "Noise complaints, neighbor disputes, common area issues (not physical repairs)";
 sem EventType.INQUIRY = "General questions, information requests, amenity questions";
 
 enum UrgencyLevel {
